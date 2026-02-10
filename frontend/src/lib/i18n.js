@@ -113,6 +113,32 @@ const translations = {
     // Footer
     footer_rights: "All rights reserved.",
     footer_desc: "Free DNS management powered by Cloudflare.",
+
+    // Admin
+    nav_admin: "Admin Panel",
+    admin_title: "Admin Panel",
+    admin_users: "Users",
+    admin_records: "All Records",
+    admin_settings: "Settings",
+    admin_total_users: "Total Users",
+    admin_total_records: "Total Records",
+    admin_delete_user: "Delete User",
+    admin_delete_user_confirm: "Delete this user and all their DNS records?",
+    admin_change_plan: "Change Plan",
+    admin_view_records: "View Records",
+    admin_user_records: "User Records",
+    admin_no_users: "No users found",
+    admin_no_records: "No records found",
+    admin_add_record: "Add Record for User",
+    admin_select_user: "Select User",
+    admin_telegram_id: "Telegram Username",
+    admin_telegram_url: "Telegram URL",
+    admin_contact_en: "Contact Message (EN)",
+    admin_contact_fa: "Contact Message (FA)",
+    admin_save_settings: "Save Settings",
+    admin_settings_saved: "Settings saved successfully",
+    pricing_contact_telegram: "Contact on Telegram",
+    pricing_contact_telegram_fa: "تماس در تلگرام",
   },
   fa: {
     // Navigation
