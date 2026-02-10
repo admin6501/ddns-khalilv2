@@ -222,6 +222,7 @@ async def login(user_data: UserLogin):
             "email": user["email"],
             "name": user["name"],
             "plan": user["plan"],
+            "role": user.get("role", "user"),
             "record_count": user["record_count"],
             "record_limit": user["record_limit"],
             "created_at": user["created_at"]
