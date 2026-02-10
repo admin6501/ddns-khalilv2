@@ -34,7 +34,7 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 72
 
 # Plan limits
-FREE_RECORD_LIMIT = 2
+PLAN_LIMITS = {"free": 2, "pro": 50, "enterprise": 500}
 
 # Create the main app
 app = FastAPI()
@@ -61,6 +61,7 @@ class UserResponse(BaseModel):
     email: str
     name: str
     plan: str
+    role: str
     record_count: int
     record_limit: int
     created_at: str
@@ -72,28 +73,27 @@ class DNSRecordCreate(BaseModel):
     ttl: int = Field(default=1, ge=1, le=86400)
     proxied: bool = Field(default=False)
 
+class AdminDNSRecordCreate(BaseModel):
+    user_id: str
+    name: str = Field(min_length=1)
+    record_type: str
+    content: str = Field(min_length=1)
+    ttl: int = Field(default=1, ge=1, le=86400)
+    proxied: bool = Field(default=False)
+
 class DNSRecordUpdate(BaseModel):
     content: Optional[str] = None
     ttl: Optional[int] = Field(default=None, ge=1, le=86400)
     proxied: Optional[bool] = None
 
-class DNSRecordResponse(BaseModel):
-    id: str
-    cf_record_id: str
-    user_id: str
-    name: str
-    full_name: str
-    record_type: str
-    content: str
-    ttl: int
-    proxied: bool
-    created_at: str
+class PlanUpdate(BaseModel):
+    plan: str = Field(description="free, pro, or enterprise")
 
-class PlanInfo(BaseModel):
-    name: str
-    price: str
-    record_limit: int
-    features: List[str]
+class SettingsUpdate(BaseModel):
+    telegram_id: Optional[str] = None
+    telegram_url: Optional[str] = None
+    contact_message_en: Optional[str] = None
+    contact_message_fa: Optional[str] = None
 
 # ============== HELPERS ==============
 
