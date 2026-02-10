@@ -666,6 +666,186 @@ class DNSAPITester:
             response, error
         )
 
+    def test_create_bulk_test_users(self):
+        """Create multiple test users for bulk operations"""
+        # Store current token
+        current_token = self.token
+        
+        self.bulk_test_users = []
+        timestamp = int(datetime.now().timestamp())
+        
+        for i in range(3):  # Create 3 test users
+            user_data = {
+                "email": f"bulkuser{i}_{timestamp}@example.com",
+                "password": "BulkTest123!",
+                "name": f"Bulk Test User {i}"
+            }
+            
+            success, response, error = self.make_request(
+                'POST', 'auth/register', 
+                user_data, 
+                expected_status=200
+            )
+            
+            if success and response and 'user' in response:
+                self.bulk_test_users.append({
+                    'id': response['user']['id'],
+                    'email': user_data['email'],
+                    'name': user_data['name']
+                })
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Create Bulk Test Users", 
+            len(self.bulk_test_users) == 3, 
+            {"created_users": len(self.bulk_test_users)}, None
+        )
+
+    def test_admin_bulk_update_plan(self):
+        """Test admin bulk plan update endpoint"""
+        if not hasattr(self, 'bulk_test_users') or len(self.bulk_test_users) < 2:
+            return self.log_result(
+                "Admin Bulk Update Plan", 
+                False, None, "No bulk_test_users available"
+            )
+        
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        # Test bulk plan change with 2 users
+        user_ids = [user['id'] for user in self.bulk_test_users[:2]]
+        bulk_plan_data = {
+            "user_ids": user_ids,
+            "plan": "pro"
+        }
+        
+        success, response, error = self.make_request(
+            'POST', 'admin/users/bulk/plan', 
+            bulk_plan_data, 
+            expected_status=200
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Bulk Update Plan", 
+            success and response and response.get('updated_count', 0) == 2, 
+            response, error
+        )
+
+    def test_admin_bulk_delete_users(self):
+        """Test admin bulk delete users endpoint"""
+        if not hasattr(self, 'bulk_test_users') or len(self.bulk_test_users) < 2:
+            return self.log_result(
+                "Admin Bulk Delete Users", 
+                False, None, "No bulk_test_users available"
+            )
+        
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        # Test bulk delete with the last 2 users (save first one for admin exclusion test)
+        user_ids = [user['id'] for user in self.bulk_test_users[1:]]
+        bulk_delete_data = {
+            "user_ids": user_ids
+        }
+        
+        success, response, error = self.make_request(
+            'POST', 'admin/users/bulk/delete', 
+            bulk_delete_data, 
+            expected_status=200
+        )
+        
+        # Remove deleted users from our tracking list
+        if success:
+            self.bulk_test_users = self.bulk_test_users[:1]
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Bulk Delete Users", 
+            success and response and response.get('deleted_count', 0) == 2, 
+            response, error
+        )
+
+    def test_admin_bulk_exclude_admin_users(self):
+        """Test bulk operations properly exclude admin users"""
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        # Get admin user ID from our stored admin_user
+        admin_user_id = self.admin_user.get('id')
+        if not admin_user_id:
+            self.token = current_token
+            return self.log_result(
+                "Admin Bulk Exclude Admin Users", 
+                False, None, "No admin user ID available"
+            )
+        
+        # Try to bulk change plan including admin user - should skip admin
+        bulk_plan_data = {
+            "user_ids": [admin_user_id],  # Only admin user
+            "plan": "free"
+        }
+        
+        success, response, error = self.make_request(
+            'POST', 'admin/users/bulk/plan', 
+            bulk_plan_data, 
+            expected_status=400  # Should fail with "No eligible users to update"
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Bulk Exclude Admin Users (Plan Change)", 
+            success,  # Success means we got 400 as expected
+            response, error
+        )
+
+    def test_admin_bulk_delete_exclude_admin_users(self):
+        """Test bulk delete excludes admin users"""
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        # Get admin user ID
+        admin_user_id = self.admin_user.get('id')
+        if not admin_user_id:
+            self.token = current_token
+            return self.log_result(
+                "Admin Bulk Delete Exclude Admin Users", 
+                False, None, "No admin user ID available"
+            )
+        
+        # Try to bulk delete admin user - should skip admin, delete count = 0
+        bulk_delete_data = {
+            "user_ids": [admin_user_id]  # Only admin user
+        }
+        
+        success, response, error = self.make_request(
+            'POST', 'admin/users/bulk/delete', 
+            bulk_delete_data, 
+            expected_status=200
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        # Should succeed but with deleted_count = 0
+        return self.log_result(
+            "Admin Bulk Delete Exclude Admin Users", 
+            success and response and response.get('deleted_count', -1) == 0, 
+            response, error
+        )
+
     def test_non_admin_access_denied(self):
         """Test non-admin user cannot access admin endpoints"""
         # Use regular user token (not admin)
