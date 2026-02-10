@@ -4,23 +4,18 @@
 - **Backend**: FastAPI + MongoDB + Cloudflare API
 - **Frontend**: React + Shadcn UI + Tailwind CSS
 - **Auth**: JWT + role-based (user/admin)
-- **DNS**: Real Cloudflare API
-- **i18n**: Persian (RTL) + English, **Theme**: Dark/Light
 
-## What's Been Implemented
-### Phase 1 - MVP: Auth, DNS CRUD, Landing, Dashboard, Bilingual, Dark/Light
-### Phase 2 - Admin Panel: Users tab (delete/plan change), Records tab, Settings (Telegram)
-### Phase 3 - Password Change + Plans CRUD (Feb 10, 2026)
-- Admin can change any user's password (key icon in users tab)
-- Plans stored in MongoDB with full CRUD (create/edit/delete from admin)
-- Landing page loads plans dynamically from DB
-- Change plan dialog reads plans from DB
-- 4 admin tabs: Users, Records, Plans, Settings
+## Implemented Features
+### Phase 1: MVP - Auth, DNS CRUD, Landing, Dashboard, Bilingual (FA/EN), Dark/Light
+### Phase 2: Admin Panel - User mgmt, Records mgmt, Settings (Telegram)
+### Phase 3: Password Change + Plans CRUD (dynamic from MongoDB)
+### Phase 4: Bulk Actions (Feb 10, 2026)
+- Checkboxes on user rows (admin excluded from selection)
+- Select All / deselect all
+- Bulk action bar: Change Plan (all at once), Delete Selected
+- Backend: POST /api/admin/users/bulk/plan, POST /api/admin/users/bulk/delete
+- Both endpoints skip admin users for safety
 
-## Admin Credentials
-- Email: admin@khalilv2.com / Password: admin123456
+## Admin: admin@khalilv2.com / admin123456
 
-## Backlog
-### P0: Stripe payment integration
-### P1: Email verification, password reset, user search/filter
-### P2: MX/TXT records, analytics, API keys
+## Backlog: P0: Stripe, P1: Email verification, password reset, P2: MX/TXT, analytics
