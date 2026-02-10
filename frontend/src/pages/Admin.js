@@ -178,6 +178,50 @@ export default function Admin() {
     } catch { toast.error('Failed to load records'); }
   };
 
+  // === Bulk actions ===
+  const toggleUserSelection = (userId) => {
+    setSelectedUserIds(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const selectable = users.filter(u => u.role !== 'admin');
+    if (selectedUserIds.size === selectable.length) {
+      setSelectedUserIds(new Set());
+    } else {
+      setSelectedUserIds(new Set(selectable.map(u => u.id)));
+    }
+  };
+
+  const handleBulkPlanChange = async () => {
+    setBulkLoading(true);
+    try {
+      const res = await adminAPI.bulkUpdatePlan([...selectedUserIds], bulkPlan);
+      toast.success(t('admin_bulk_plan_updated').replace('{count}', res.data.updated_count));
+      setShowBulkPlanDialog(false);
+      setSelectedUserIds(new Set());
+      fetchUsers();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
+    finally { setBulkLoading(false); }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkLoading(true);
+    try {
+      const res = await adminAPI.bulkDeleteUsers([...selectedUserIds]);
+      toast.success(t('admin_bulk_deleted').replace('{count}', res.data.deleted_count));
+      setShowBulkDeleteDialog(false);
+      setSelectedUserIds(new Set());
+      fetchUsers();
+      fetchAllRecords();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
+    finally { setBulkLoading(false); }
+  };
+
   // === Record actions ===
   const handleDeleteRecord = async () => {
     if (!deleteRecordId) return;
