@@ -121,6 +121,12 @@ export default function Navbar() {
                     <LayoutDashboard className="w-4 h-4 me-2" />
                     {t('nav_dashboard')}
                   </DropdownMenuItem>
+                  {isAdmin && (
+                    <DropdownMenuItem onClick={() => navigate('/admin')} data-testid="menu-admin">
+                      <Crown className="w-4 h-4 me-2" />
+                      {t('nav_admin')}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-destructive" data-testid="menu-logout">
                     <LogOut className="w-4 h-4 me-2" />
