@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
-import { Globe, Sun, Moon, Languages, Menu, X, LogOut, LayoutDashboard, User } from 'lucide-react';
+import { Globe, Sun, Moon, Languages, Menu, X, LogOut, LayoutDashboard, User, Crown } from 'lucide-react';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -27,9 +27,13 @@ export default function Navbar() {
   };
 
   const isActive = (path) => location.pathname === path;
+  const isAdmin = user?.role === 'admin';
 
   const navLinks = user
-    ? [{ path: '/dashboard', label: t('nav_dashboard') }]
+    ? [
+        { path: '/dashboard', label: t('nav_dashboard') },
+        ...(isAdmin ? [{ path: '/admin', label: t('nav_admin') }] : []),
+      ]
     : [
         { path: '/#features', label: t('nav_features'), isHash: true },
         { path: '/#pricing', label: t('nav_pricing'), isHash: true },
