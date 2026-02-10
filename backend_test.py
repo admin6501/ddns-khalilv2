@@ -712,26 +712,38 @@ class DNSAPITester:
         # 3. Test getting current user
         self.test_get_current_user()
         
-        # 4. Test plans endpoint
-        self.test_get_plans()
+        # 4. Test plans endpoints (both admin and public)
+        self.test_admin_list_plans()
+        self.test_public_plans_api()
         
-        # 5. Test admin endpoints
+        # 5. Test admin plan CRUD operations
+        self.test_admin_create_plan()
+        self.test_admin_update_plan()
+        self.test_admin_delete_plan()
+        
+        # 6. Test admin user management
         self.test_admin_list_users()
+        self.test_admin_change_user_password()
+        self.test_user_login_after_password_change()  # Test new password works
+        self.test_admin_update_user_plan()
+        
+        # 7. Test admin records management
         self.test_admin_list_all_records()
         self.test_admin_create_record_for_user()
         self.test_admin_delete_record()
-        self.test_admin_update_user_plan()
+        
+        # 8. Test admin settings
         self.test_admin_get_settings()
         self.test_admin_update_settings()
         self.test_public_contact_api()
         
-        # 6. Test access control
+        # 9. Test access control
         self.test_non_admin_access_denied()
         
-        # 7. Test regular DNS record operations
+        # 10. Test regular DNS record operations
         self.test_list_dns_records_empty()
         
-        # 8. Create first DNS record (A record)
+        # 11. Create first DNS record (A record)
         record1 = {
             "name": f"test1-{int(datetime.now().timestamp())}",
             "record_type": "A",
@@ -740,7 +752,7 @@ class DNSAPITester:
         }
         self.test_create_dns_record(record1)
         
-        # 9. Create second DNS record (CNAME record)
+        # 12. Create second DNS record (CNAME record)
         record2 = {
             "name": f"test2-{int(datetime.now().timestamp())}",
             "record_type": "CNAME", 
@@ -749,17 +761,17 @@ class DNSAPITester:
         }
         self.test_create_dns_record(record2)
         
-        # 10. List records with data
+        # 13. List records with data
         self.test_list_dns_records_with_data()
         
-        # 11. Update first record
+        # 14. Update first record
         if self.created_records:
             self.test_update_dns_record(self.created_records[0])
             
-        # 12. Test record limit enforcement
+        # 15. Test record limit enforcement
         self.test_record_limit_enforcement()
         
-        # 13. Clean up
+        # 16. Clean up
         self.cleanup_records()
         
         # Summary
