@@ -672,6 +672,7 @@ async def startup():
     await db.users.create_index("id", unique=True)
     await db.dns_records.create_index("user_id")
     await db.dns_records.create_index("id", unique=True)
+    await db.plans.create_index("plan_id", unique=True)
     
     # Seed admin user if not exists
     admin_email = os.environ.get('ADMIN_EMAIL', 'admin@khalilv2.com')
@@ -691,6 +692,18 @@ async def startup():
         }
         await db.users.insert_one(admin_doc)
         logger.info(f"Admin user created: {admin_email}")
+    
+    # Seed default plans if empty
+    plans_count = await db.plans.count_documents({})
+    if plans_count == 0:
+        for p in DEFAULT_PLANS:
+            await db.plans.insert_one(dict(p))
+        logger.info("Default plans seeded")
+    else:
+        # Load plan limits from DB into cache
+        db_plans = await db.plans.find({}, {"_id": 0}).to_list(50)
+        for p in db_plans:
+            PLAN_LIMITS[p["plan_id"]] = p["record_limit"]
     
     # Seed default settings if not exists
     existing_settings = await db.settings.find_one({"key": "site_settings"})
