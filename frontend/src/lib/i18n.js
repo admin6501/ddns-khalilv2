@@ -254,6 +254,32 @@ const translations = {
     // Footer
     footer_rights: "تمامی حقوق محفوظ است.",
     footer_desc: "مدیریت DNS رایگان با قدرت Cloudflare.",
+
+    // Admin
+    nav_admin: "پنل مدیریت",
+    admin_title: "پنل مدیریت",
+    admin_users: "کاربران",
+    admin_records: "تمام رکوردها",
+    admin_settings: "تنظیمات",
+    admin_total_users: "کل کاربران",
+    admin_total_records: "کل رکوردها",
+    admin_delete_user: "حذف کاربر",
+    admin_delete_user_confirm: "آیا این کاربر و تمام رکوردهایش حذف شوند؟",
+    admin_change_plan: "تغییر پلن",
+    admin_view_records: "مشاهده رکوردها",
+    admin_user_records: "رکوردهای کاربر",
+    admin_no_users: "کاربری یافت نشد",
+    admin_no_records: "رکوردی یافت نشد",
+    admin_add_record: "افزودن رکورد برای کاربر",
+    admin_select_user: "انتخاب کاربر",
+    admin_telegram_id: "نام کاربری تلگرام",
+    admin_telegram_url: "آدرس تلگرام",
+    admin_contact_en: "پیام تماس (انگلیسی)",
+    admin_contact_fa: "پیام تماس (فارسی)",
+    admin_save_settings: "ذخیره تنظیمات",
+    admin_settings_saved: "تنظیمات با موفقیت ذخیره شد",
+    pricing_contact_telegram: "تماس در تلگرام",
+    pricing_contact_telegram_fa: "تماس در تلگرام",
   }
 };
 
