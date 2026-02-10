@@ -6,43 +6,25 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Badge } from '../components/ui/badge';
+import { Textarea } from '../components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '../components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '../components/ui/dialog';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '../components/ui/alert-dialog';
 import { Switch } from '../components/ui/switch';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '../components/ui/table';
 import {
-  Users, Server, Settings, Trash2, Eye, ArrowUpDown,
-  Loader2, Plus, Save, Send, RefreshCw, Crown
+  Users, Server, Settings, Trash2, Eye, ArrowUpDown, Loader2,
+  Plus, Save, RefreshCw, Crown, KeyRound, CreditCard, Pencil
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -53,7 +35,7 @@ export default function Admin() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('users');
 
-  // Users state
+  // Users
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [deleteUserId, setDeleteUserId] = useState(null);
@@ -61,22 +43,40 @@ export default function Admin() {
   const [selectedPlan, setSelectedPlan] = useState('free');
   const [planLoading, setPlanLoading] = useState(false);
 
-  // Records state
+  // Password
+  const [passwordDialogUser, setPasswordDialogUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  // Records
   const [allRecords, setAllRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
   const [userRecordsDialog, setUserRecordsDialog] = useState(null);
   const [userRecords, setUserRecords] = useState([]);
   const [deleteRecordId, setDeleteRecordId] = useState(null);
 
-  // Create record state
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [createForm, setCreateForm] = useState({
+  // Create record
+  const [showCreateRecordDialog, setShowCreateRecordDialog] = useState(false);
+  const [createRecordForm, setCreateRecordForm] = useState({
     user_id: '', name: '', record_type: 'A', content: '', ttl: 1, proxied: false
   });
-  const [createLoading, setCreateLoading] = useState(false);
-  const [createError, setCreateError] = useState('');
+  const [createRecordLoading, setCreateRecordLoading] = useState(false);
+  const [createRecordError, setCreateRecordError] = useState('');
 
-  // Settings state
+  // Plans
+  const [plans, setPlans] = useState([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [showPlanDialog, setShowPlanDialog] = useState(false);
+  const [editingPlan, setEditingPlan] = useState(null);
+  const [planForm, setPlanForm] = useState({
+    plan_id: '', name: '', name_fa: '', price: '', price_fa: '',
+    record_limit: 0, features: '', features_fa: '', popular: false, sort_order: 0
+  });
+  const [planFormLoading, setPlanFormLoading] = useState(false);
+  const [planFormError, setPlanFormError] = useState('');
+  const [deletePlanId, setDeletePlanId] = useState(null);
+
+  // Settings
   const [settings, setSettings] = useState({
     telegram_id: '', telegram_url: '', contact_message_en: '', contact_message_fa: ''
   });
@@ -88,11 +88,8 @@ export default function Admin() {
     try {
       const res = await adminAPI.listUsers();
       setUsers(res.data.users || []);
-    } catch (err) {
-      toast.error('Failed to load users');
-    } finally {
-      setUsersLoading(false);
-    }
+    } catch { toast.error('Failed to load users'); }
+    finally { setUsersLoading(false); }
   }, []);
 
   const fetchAllRecords = useCallback(async () => {
@@ -100,11 +97,17 @@ export default function Admin() {
     try {
       const res = await adminAPI.listAllRecords();
       setAllRecords(res.data.records || []);
-    } catch (err) {
-      toast.error('Failed to load records');
-    } finally {
-      setRecordsLoading(false);
-    }
+    } catch { toast.error('Failed to load records'); }
+    finally { setRecordsLoading(false); }
+  }, []);
+
+  const fetchPlans = useCallback(async () => {
+    setPlansLoading(true);
+    try {
+      const res = await adminAPI.listPlans();
+      setPlans(res.data.plans || []);
+    } catch { toast.error('Failed to load plans'); }
+    finally { setPlansLoading(false); }
   }, []);
 
   const fetchSettings = useCallback(async () => {
@@ -117,18 +120,13 @@ export default function Admin() {
         contact_message_en: res.data.contact_message_en || '',
         contact_message_fa: res.data.contact_message_fa || '',
       });
-    } catch (err) {
-      toast.error('Failed to load settings');
-    } finally {
-      setSettingsLoading(false);
-    }
+    } catch { toast.error('Failed to load settings'); }
+    finally { setSettingsLoading(false); }
   }, []);
 
   useEffect(() => {
-    fetchUsers();
-    fetchAllRecords();
-    fetchSettings();
-  }, [fetchUsers, fetchAllRecords, fetchSettings]);
+    fetchUsers(); fetchAllRecords(); fetchPlans(); fetchSettings();
+  }, [fetchUsers, fetchAllRecords, fetchPlans, fetchSettings]);
 
   // === User actions ===
   const handleDeleteUser = async () => {
@@ -137,11 +135,8 @@ export default function Admin() {
       await adminAPI.deleteUser(deleteUserId);
       toast.success('User deleted');
       setDeleteUserId(null);
-      fetchUsers();
-      fetchAllRecords();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to delete');
-    }
+      fetchUsers(); fetchAllRecords();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
   };
 
   const handleChangePlan = async () => {
@@ -152,11 +147,20 @@ export default function Admin() {
       toast.success(`Plan updated to ${selectedPlan}`);
       setPlanDialogUser(null);
       fetchUsers();
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to update');
-    } finally {
-      setPlanLoading(false);
-    }
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
+    finally { setPlanLoading(false); }
+  };
+
+  const handleChangePassword = async () => {
+    if (!passwordDialogUser || newPassword.length < 6) return;
+    setPasswordLoading(true);
+    try {
+      await adminAPI.changeUserPassword(passwordDialogUser.id, newPassword);
+      toast.success(t('admin_password_changed'));
+      setPasswordDialogUser(null);
+      setNewPassword('');
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
+    finally { setPasswordLoading(false); }
   };
 
   const handleViewUserRecords = async (u) => {
@@ -164,9 +168,7 @@ export default function Admin() {
     try {
       const res = await adminAPI.getUserRecords(u.id);
       setUserRecords(res.data.records || []);
-    } catch (err) {
-      toast.error('Failed to load records');
-    }
+    } catch { toast.error('Failed to load records'); }
   };
 
   // === Record actions ===
@@ -177,29 +179,78 @@ export default function Admin() {
       toast.success('Record deleted');
       setDeleteRecordId(null);
       fetchAllRecords();
-      if (userRecordsDialog) {
-        handleViewUserRecords(userRecordsDialog);
-      }
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to delete');
-    }
+      if (userRecordsDialog) handleViewUserRecords(userRecordsDialog);
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
   };
 
   const handleCreateRecord = async () => {
-    setCreateError('');
-    setCreateLoading(true);
+    setCreateRecordError('');
+    setCreateRecordLoading(true);
     try {
-      await adminAPI.createRecord(createForm);
+      await adminAPI.createRecord(createRecordForm);
       toast.success('Record created');
-      setShowCreateDialog(false);
-      setCreateForm({ user_id: '', name: '', record_type: 'A', content: '', ttl: 1, proxied: false });
-      fetchAllRecords();
-      fetchUsers();
-    } catch (err) {
-      setCreateError(err.response?.data?.detail || 'Failed to create');
-    } finally {
-      setCreateLoading(false);
-    }
+      setShowCreateRecordDialog(false);
+      setCreateRecordForm({ user_id: '', name: '', record_type: 'A', content: '', ttl: 1, proxied: false });
+      fetchAllRecords(); fetchUsers();
+    } catch (err) { setCreateRecordError(err.response?.data?.detail || 'Failed'); }
+    finally { setCreateRecordLoading(false); }
+  };
+
+  // === Plan actions ===
+  const openCreatePlan = () => {
+    setEditingPlan(null);
+    setPlanForm({ plan_id: '', name: '', name_fa: '', price: '', price_fa: '', record_limit: 0, features: '', features_fa: '', popular: false, sort_order: plans.length });
+    setPlanFormError('');
+    setShowPlanDialog(true);
+  };
+
+  const openEditPlan = (p) => {
+    setEditingPlan(p);
+    setPlanForm({
+      plan_id: p.plan_id,
+      name: p.name, name_fa: p.name_fa || '',
+      price: p.price, price_fa: p.price_fa || '',
+      record_limit: p.record_limit,
+      features: (p.features || []).join('\n'),
+      features_fa: (p.features_fa || []).join('\n'),
+      popular: p.popular || false,
+      sort_order: p.sort_order || 0,
+    });
+    setPlanFormError('');
+    setShowPlanDialog(true);
+  };
+
+  const handleSavePlan = async () => {
+    setPlanFormError('');
+    setPlanFormLoading(true);
+    const payload = {
+      ...planForm,
+      features: planForm.features.split('\n').filter(Boolean),
+      features_fa: planForm.features_fa.split('\n').filter(Boolean),
+    };
+    try {
+      if (editingPlan) {
+        const { plan_id, ...rest } = payload;
+        await adminAPI.updatePlan(editingPlan.plan_id, rest);
+        toast.success(t('admin_plan_updated'));
+      } else {
+        await adminAPI.createPlan(payload);
+        toast.success(t('admin_plan_created'));
+      }
+      setShowPlanDialog(false);
+      fetchPlans();
+    } catch (err) { setPlanFormError(err.response?.data?.detail || 'Failed'); }
+    finally { setPlanFormLoading(false); }
+  };
+
+  const handleDeletePlan = async () => {
+    if (!deletePlanId) return;
+    try {
+      await adminAPI.deletePlan(deletePlanId);
+      toast.success(t('admin_plan_deleted'));
+      setDeletePlanId(null);
+      fetchPlans();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
   };
 
   // === Settings ===
@@ -208,11 +259,8 @@ export default function Admin() {
     try {
       await adminAPI.updateSettings(settings);
       toast.success(t('admin_settings_saved'));
-    } catch (err) {
-      toast.error('Failed to save settings');
-    } finally {
-      setSettingsSaving(false);
-    }
+    } catch { toast.error('Failed'); }
+    finally { setSettingsSaving(false); }
   };
 
   const planColors = {
@@ -220,13 +268,11 @@ export default function Admin() {
     pro: 'bg-primary/10 text-primary border-primary/20',
     enterprise: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
   };
-
   const typeColors = {
     A: 'bg-primary/10 text-primary border-primary/20',
     AAAA: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20',
     CNAME: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
   };
-
   const nonAdminUsers = users.filter(u => u.role !== 'admin');
 
   return (
@@ -246,22 +292,31 @@ export default function Admin() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-          <div className="rounded-xl border border-border bg-card p-6" data-testid="admin-stat-users">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="rounded-xl border border-border bg-card p-5" data-testid="admin-stat-users">
             <div className="flex items-center gap-3">
-              <Users className="w-8 h-8 text-primary" />
+              <Users className="w-7 h-7 text-primary" />
               <div>
                 <p className="text-sm text-muted-foreground">{t('admin_total_users')}</p>
-                <p className="text-3xl font-bold">{users.length}</p>
+                <p className="text-2xl font-bold">{users.length}</p>
               </div>
             </div>
           </div>
-          <div className="rounded-xl border border-border bg-card p-6" data-testid="admin-stat-records">
+          <div className="rounded-xl border border-border bg-card p-5" data-testid="admin-stat-records">
             <div className="flex items-center gap-3">
-              <Server className="w-8 h-8 text-primary" />
+              <Server className="w-7 h-7 text-primary" />
               <div>
                 <p className="text-sm text-muted-foreground">{t('admin_total_records')}</p>
-                <p className="text-3xl font-bold">{allRecords.length}</p>
+                <p className="text-2xl font-bold">{allRecords.length}</p>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-5" data-testid="admin-stat-plans">
+            <div className="flex items-center gap-3">
+              <CreditCard className="w-7 h-7 text-primary" />
+              <div>
+                <p className="text-sm text-muted-foreground">{t('admin_plans_tab')}</p>
+                <p className="text-2xl font-bold">{plans.length}</p>
               </div>
             </div>
           </div>
@@ -269,25 +324,26 @@ export default function Admin() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-3 w-full max-w-md">
+          <TabsList className="grid grid-cols-4 w-full max-w-lg">
             <TabsTrigger value="users" data-testid="admin-tab-users">
-              <Users className="w-4 h-4 me-2" />{t('admin_users')}
+              <Users className="w-4 h-4 me-1.5" />{t('admin_users')}
             </TabsTrigger>
             <TabsTrigger value="records" data-testid="admin-tab-records">
-              <Server className="w-4 h-4 me-2" />{t('admin_records')}
+              <Server className="w-4 h-4 me-1.5" />{t('admin_records')}
+            </TabsTrigger>
+            <TabsTrigger value="plans" data-testid="admin-tab-plans">
+              <CreditCard className="w-4 h-4 me-1.5" />{t('admin_plans_tab')}
             </TabsTrigger>
             <TabsTrigger value="settings" data-testid="admin-tab-settings">
-              <Settings className="w-4 h-4 me-2" />{t('admin_settings')}
+              <Settings className="w-4 h-4 me-1.5" />{t('admin_settings')}
             </TabsTrigger>
           </TabsList>
 
-          {/* USERS TAB */}
+          {/* ===== USERS TAB ===== */}
           <TabsContent value="users" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">{t('admin_users')}</h2>
-              <Button variant="ghost" size="sm" onClick={fetchUsers} data-testid="admin-refresh-users">
-                <RefreshCw className="w-4 h-4" />
-              </Button>
+              <Button variant="ghost" size="sm" onClick={fetchUsers} data-testid="admin-refresh-users"><RefreshCw className="w-4 h-4" /></Button>
             </div>
             <div className="rounded-xl border border-border bg-card overflow-hidden">
               {usersLoading ? (
@@ -313,27 +369,26 @@ export default function Admin() {
                           <TableCell className="font-medium">{u.name}</TableCell>
                           <TableCell className="font-mono text-sm">{u.email}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={planColors[u.plan] || ''}>
-                              {u.plan}
-                            </Badge>
+                            <Badge variant="outline" className={planColors[u.plan] || 'bg-muted text-muted-foreground'}>{u.plan}</Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>
-                              {u.role || 'user'}
-                            </Badge>
+                            <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>{u.role || 'user'}</Badge>
                           </TableCell>
                           <TableCell>{u.record_count}/{u.record_limit}</TableCell>
                           <TableCell className="text-end">
                             <div className="flex items-center justify-end gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => handleViewUserRecords(u)} data-testid={`admin-view-records-${u.id}`}>
+                              <Button variant="ghost" size="sm" onClick={() => handleViewUserRecords(u)} title={t('admin_view_records')} data-testid={`admin-view-records-${u.id}`}>
                                 <Eye className="w-4 h-4" />
                               </Button>
                               {u.role !== 'admin' && (
                                 <>
-                                  <Button variant="ghost" size="sm" onClick={() => { setPlanDialogUser(u); setSelectedPlan(u.plan); }} data-testid={`admin-change-plan-${u.id}`}>
+                                  <Button variant="ghost" size="sm" onClick={() => { setPlanDialogUser(u); setSelectedPlan(u.plan); }} title={t('admin_change_plan')} data-testid={`admin-change-plan-${u.id}`}>
                                     <ArrowUpDown className="w-4 h-4" />
                                   </Button>
-                                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteUserId(u.id)} data-testid={`admin-delete-user-${u.id}`}>
+                                  <Button variant="ghost" size="sm" onClick={() => { setPasswordDialogUser(u); setNewPassword(''); }} title={t('admin_change_password')} data-testid={`admin-change-pw-${u.id}`}>
+                                    <KeyRound className="w-4 h-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteUserId(u.id)} title={t('admin_delete_user')} data-testid={`admin-delete-user-${u.id}`}>
                                     <Trash2 className="w-4 h-4" />
                                   </Button>
                                 </>
@@ -349,17 +404,15 @@ export default function Admin() {
             </div>
           </TabsContent>
 
-          {/* RECORDS TAB */}
+          {/* ===== RECORDS TAB ===== */}
           <TabsContent value="records" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">{t('admin_records')}</h2>
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => setShowCreateDialog(true)} data-testid="admin-add-record-btn">
+                <Button size="sm" onClick={() => setShowCreateRecordDialog(true)} data-testid="admin-add-record-btn">
                   <Plus className="w-4 h-4 me-2" />{t('admin_add_record')}
                 </Button>
-                <Button variant="ghost" size="sm" onClick={fetchAllRecords} data-testid="admin-refresh-records">
-                  <RefreshCw className="w-4 h-4" />
-                </Button>
+                <Button variant="ghost" size="sm" onClick={fetchAllRecords} data-testid="admin-refresh-records"><RefreshCw className="w-4 h-4" /></Button>
               </div>
             </div>
             <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -382,9 +435,7 @@ export default function Admin() {
                     <TableBody>
                       {allRecords.map((rec) => (
                         <TableRow key={rec.id} data-testid={`admin-record-row-${rec.id}`}>
-                          <TableCell>
-                            <Badge variant="outline" className={typeColors[rec.record_type] || ''}>{rec.record_type}</Badge>
-                          </TableCell>
+                          <TableCell><Badge variant="outline" className={typeColors[rec.record_type] || ''}>{rec.record_type}</Badge></TableCell>
                           <TableCell className="font-mono text-sm">{rec.full_name}</TableCell>
                           <TableCell className="font-mono text-sm max-w-[180px] truncate">{rec.content}</TableCell>
                           <TableCell className="text-sm">{rec.user_email || rec.user_id}</TableCell>
@@ -402,10 +453,76 @@ export default function Admin() {
             </div>
           </TabsContent>
 
-          {/* SETTINGS TAB */}
+          {/* ===== PLANS TAB ===== */}
+          <TabsContent value="plans" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold">{t('admin_plans_tab')}</h2>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={openCreatePlan} data-testid="admin-add-plan-btn">
+                  <Plus className="w-4 h-4 me-2" />{t('admin_add_plan')}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={fetchPlans} data-testid="admin-refresh-plans"><RefreshCw className="w-4 h-4" /></Button>
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              {plansLoading ? (
+                <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+              ) : plans.length === 0 ? (
+                <div className="text-center p-8 text-muted-foreground">{t('admin_no_plans')}</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>ID</TableHead>
+                        <TableHead>{lang === 'fa' ? 'نام' : 'Name'}</TableHead>
+                        <TableHead>{t('admin_plan_price')}</TableHead>
+                        <TableHead>{t('admin_plan_limit')}</TableHead>
+                        <TableHead>{t('admin_plan_popular')}</TableHead>
+                        <TableHead>{lang === 'fa' ? 'ترتیب' : 'Order'}</TableHead>
+                        <TableHead className="text-end">{t('table_actions')}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {plans.map((p) => (
+                        <TableRow key={p.plan_id} data-testid={`admin-plan-row-${p.plan_id}`}>
+                          <TableCell className="font-mono text-sm">{p.plan_id}</TableCell>
+                          <TableCell>
+                            <div>{p.name}</div>
+                            <div className="text-xs text-muted-foreground">{p.name_fa}</div>
+                          </TableCell>
+                          <TableCell>
+                            <div>{p.price}</div>
+                            <div className="text-xs text-muted-foreground">{p.price_fa}</div>
+                          </TableCell>
+                          <TableCell className="font-semibold">{p.record_limit}</TableCell>
+                          <TableCell>
+                            {p.popular ? <Badge className="bg-primary/10 text-primary">{lang === 'fa' ? 'بله' : 'Yes'}</Badge> : <span className="text-muted-foreground text-sm">{lang === 'fa' ? 'خیر' : 'No'}</span>}
+                          </TableCell>
+                          <TableCell>{p.sort_order}</TableCell>
+                          <TableCell className="text-end">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => openEditPlan(p)} data-testid={`admin-edit-plan-${p.plan_id}`}>
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeletePlanId(p.plan_id)} data-testid={`admin-delete-plan-${p.plan_id}`}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* ===== SETTINGS TAB ===== */}
           <TabsContent value="settings" className="space-y-6">
             <h2 className="text-xl font-semibold">{t('admin_settings')}</h2>
-            <div className="rounded-xl border border-border bg-card p-6 space-y-6 max-w-xl">
+            <div className="rounded-xl border border-border bg-card p-6 space-y-5 max-w-xl">
               {settingsLoading ? (
                 <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
               ) : (
@@ -414,39 +531,20 @@ export default function Admin() {
                     <Label>{t('admin_telegram_id')}</Label>
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground">@</span>
-                      <Input
-                        value={settings.telegram_id}
-                        onChange={(e) => setSettings(prev => ({ ...prev, telegram_id: e.target.value }))}
-                        placeholder="username"
-                        data-testid="admin-telegram-id-input"
-                      />
+                      <Input value={settings.telegram_id} onChange={(e) => setSettings(p => ({ ...p, telegram_id: e.target.value }))} placeholder="username" data-testid="admin-telegram-id-input" />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label>{t('admin_telegram_url')}</Label>
-                    <Input
-                      value={settings.telegram_url}
-                      onChange={(e) => setSettings(prev => ({ ...prev, telegram_url: e.target.value }))}
-                      placeholder="https://t.me/username"
-                      data-testid="admin-telegram-url-input"
-                    />
+                    <Input value={settings.telegram_url} onChange={(e) => setSettings(p => ({ ...p, telegram_url: e.target.value }))} placeholder="https://t.me/username" data-testid="admin-telegram-url-input" />
                   </div>
                   <div className="space-y-2">
                     <Label>{t('admin_contact_en')}</Label>
-                    <Input
-                      value={settings.contact_message_en}
-                      onChange={(e) => setSettings(prev => ({ ...prev, contact_message_en: e.target.value }))}
-                      data-testid="admin-contact-en-input"
-                    />
+                    <Input value={settings.contact_message_en} onChange={(e) => setSettings(p => ({ ...p, contact_message_en: e.target.value }))} data-testid="admin-contact-en-input" />
                   </div>
                   <div className="space-y-2">
                     <Label>{t('admin_contact_fa')}</Label>
-                    <Input
-                      value={settings.contact_message_fa}
-                      onChange={(e) => setSettings(prev => ({ ...prev, contact_message_fa: e.target.value }))}
-                      dir="rtl"
-                      data-testid="admin-contact-fa-input"
-                    />
+                    <Input value={settings.contact_message_fa} onChange={(e) => setSettings(p => ({ ...p, contact_message_fa: e.target.value }))} dir="rtl" data-testid="admin-contact-fa-input" />
                   </div>
                   <Button onClick={handleSaveSettings} disabled={settingsSaving} data-testid="admin-save-settings-btn">
                     {settingsSaving ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Save className="w-4 h-4 me-2" />}
@@ -459,7 +557,9 @@ export default function Admin() {
         </Tabs>
       </div>
 
-      {/* Delete User Dialog */}
+      {/* === DIALOGS === */}
+
+      {/* Delete User */}
       <AlertDialog open={!!deleteUserId} onOpenChange={() => setDeleteUserId(null)}>
         <AlertDialogContent data-testid="admin-delete-user-dialog">
           <AlertDialogHeader>
@@ -467,51 +567,72 @@ export default function Admin() {
             <AlertDialogDescription>{t('admin_delete_user_confirm')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="admin-delete-user-cancel">{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" data-testid="admin-delete-user-confirm-btn">
-              {t('delete_confirm')}
-            </AlertDialogAction>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteUser} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" data-testid="admin-delete-user-confirm-btn">{t('delete_confirm')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Change Plan Dialog */}
+      {/* Change Plan */}
       <Dialog open={!!planDialogUser} onOpenChange={() => setPlanDialogUser(null)}>
         <DialogContent className="sm:max-w-sm" data-testid="admin-change-plan-dialog">
-          <DialogHeader>
-            <DialogTitle>{t('admin_change_plan')}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{t('admin_change_plan')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              {planDialogUser?.email} - {lang === 'fa' ? 'پلن فعلی:' : 'Current:'} <strong>{planDialogUser?.plan}</strong>
+              {planDialogUser?.email} &mdash; {lang === 'fa' ? 'فعلی:' : 'Current:'} <strong>{planDialogUser?.plan}</strong>
             </p>
             <Select value={selectedPlan} onValueChange={setSelectedPlan}>
-              <SelectTrigger data-testid="admin-plan-select">
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger data-testid="admin-plan-select"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="free">Free (2 records)</SelectItem>
-                <SelectItem value="pro">Pro (50 records)</SelectItem>
-                <SelectItem value="enterprise">Enterprise (500 records)</SelectItem>
+                {plans.map(p => (
+                  <SelectItem key={p.plan_id} value={p.plan_id}>{p.name} ({p.record_limit} records)</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPlanDialogUser(null)}>{t('cancel')}</Button>
             <Button onClick={handleChangePlan} disabled={planLoading} data-testid="admin-plan-save-btn">
-              {planLoading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : null}
-              {t('save')}
+              {planLoading && <Loader2 className="w-4 h-4 animate-spin me-2" />}{t('save')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* View User Records Dialog */}
+      {/* Change Password */}
+      <Dialog open={!!passwordDialogUser} onOpenChange={() => setPasswordDialogUser(null)}>
+        <DialogContent className="sm:max-w-sm" data-testid="admin-change-password-dialog">
+          <DialogHeader><DialogTitle>{t('admin_change_password')}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">{passwordDialogUser?.email}</p>
+            <div className="space-y-2">
+              <Label>{t('admin_new_password')}</Label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••"
+                minLength={6}
+                data-testid="admin-new-password-input"
+              />
+              {newPassword.length > 0 && newPassword.length < 6 && (
+                <p className="text-xs text-destructive">{lang === 'fa' ? 'حداقل ۶ کاراکتر' : 'Minimum 6 characters'}</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPasswordDialogUser(null)}>{t('cancel')}</Button>
+            <Button onClick={handleChangePassword} disabled={passwordLoading || newPassword.length < 6} data-testid="admin-password-save-btn">
+              {passwordLoading && <Loader2 className="w-4 h-4 animate-spin me-2" />}{t('save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View User Records */}
       <Dialog open={!!userRecordsDialog} onOpenChange={() => setUserRecordsDialog(null)}>
         <DialogContent className="sm:max-w-2xl" data-testid="admin-user-records-dialog">
-          <DialogHeader>
-            <DialogTitle>{t('admin_user_records')} - {userRecordsDialog?.email}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{t('admin_user_records')} &mdash; {userRecordsDialog?.email}</DialogTitle></DialogHeader>
           {userRecords.length === 0 ? (
             <p className="text-center text-muted-foreground py-6">{t('admin_no_records')}</p>
           ) : (
@@ -545,7 +666,7 @@ export default function Admin() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Record Dialog */}
+      {/* Delete Record */}
       <AlertDialog open={!!deleteRecordId} onOpenChange={() => setDeleteRecordId(null)}>
         <AlertDialogContent data-testid="admin-delete-record-dialog">
           <AlertDialogHeader>
@@ -554,54 +675,35 @@ export default function Admin() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteRecord} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" data-testid="admin-delete-record-confirm-btn">
-              {t('delete_confirm')}
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteRecord} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" data-testid="admin-delete-record-confirm-btn">{t('delete_confirm')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Create Record Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      {/* Create Record for User */}
+      <Dialog open={showCreateRecordDialog} onOpenChange={setShowCreateRecordDialog}>
         <DialogContent className="sm:max-w-md" data-testid="admin-create-record-dialog">
-          <DialogHeader>
-            <DialogTitle>{t('admin_add_record')}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{t('admin_add_record')}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            {createError && (
-              <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm border border-destructive/20">{createError}</div>
-            )}
+            {createRecordError && <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm border border-destructive/20">{createRecordError}</div>}
             <div className="space-y-2">
               <Label>{t('admin_select_user')}</Label>
-              <Select value={createForm.user_id} onValueChange={(v) => setCreateForm(prev => ({ ...prev, user_id: v }))}>
-                <SelectTrigger data-testid="admin-create-user-select">
-                  <SelectValue placeholder={t('admin_select_user')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {nonAdminUsers.map(u => (
-                    <SelectItem key={u.id} value={u.id}>{u.name} ({u.email})</SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={createRecordForm.user_id} onValueChange={(v) => setCreateRecordForm(p => ({ ...p, user_id: v }))}>
+                <SelectTrigger data-testid="admin-create-user-select"><SelectValue placeholder={t('admin_select_user')} /></SelectTrigger>
+                <SelectContent>{nonAdminUsers.map(u => <SelectItem key={u.id} value={u.id}>{u.name} ({u.email})</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <Label>{t('form_subdomain')}</Label>
               <div className="flex items-center gap-2">
-                <Input
-                  value={createForm.name}
-                  onChange={(e) => setCreateForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="mysite"
-                  data-testid="admin-create-subdomain-input"
-                />
+                <Input value={createRecordForm.name} onChange={(e) => setCreateRecordForm(p => ({ ...p, name: e.target.value }))} placeholder="mysite" data-testid="admin-create-subdomain-input" />
                 <span className="text-sm text-muted-foreground whitespace-nowrap">.{DOMAIN}</span>
               </div>
             </div>
             <div className="space-y-2">
               <Label>{t('form_type')}</Label>
-              <Select value={createForm.record_type} onValueChange={(v) => setCreateForm(prev => ({ ...prev, record_type: v }))}>
-                <SelectTrigger data-testid="admin-create-type-select">
-                  <SelectValue />
-                </SelectTrigger>
+              <Select value={createRecordForm.record_type} onValueChange={(v) => setCreateRecordForm(p => ({ ...p, record_type: v }))}>
+                <SelectTrigger data-testid="admin-create-type-select"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="A">A</SelectItem>
                   <SelectItem value="AAAA">AAAA</SelectItem>
@@ -611,31 +713,102 @@ export default function Admin() {
             </div>
             <div className="space-y-2">
               <Label>{t('form_content')}</Label>
-              <Input
-                value={createForm.content}
-                onChange={(e) => setCreateForm(prev => ({ ...prev, content: e.target.value }))}
-                placeholder="192.168.1.1"
-                data-testid="admin-create-content-input"
-              />
+              <Input value={createRecordForm.content} onChange={(e) => setCreateRecordForm(p => ({ ...p, content: e.target.value }))} placeholder="192.168.1.1" data-testid="admin-create-content-input" />
             </div>
             <div className="flex items-center justify-between">
               <Label>{t('form_proxied')}</Label>
-              <Switch
-                checked={createForm.proxied}
-                onCheckedChange={(v) => setCreateForm(prev => ({ ...prev, proxied: v }))}
-                data-testid="admin-create-proxied-switch"
-              />
+              <Switch checked={createRecordForm.proxied} onCheckedChange={(v) => setCreateRecordForm(p => ({ ...p, proxied: v }))} data-testid="admin-create-proxied-switch" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>{t('cancel')}</Button>
-            <Button onClick={handleCreateRecord} disabled={createLoading || !createForm.user_id || !createForm.name || !createForm.content} data-testid="admin-create-record-btn">
-              {createLoading ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Plus className="w-4 h-4 me-2" />}
-              {t('form_create')}
+            <Button variant="outline" onClick={() => setShowCreateRecordDialog(false)}>{t('cancel')}</Button>
+            <Button onClick={handleCreateRecord} disabled={createRecordLoading || !createRecordForm.user_id || !createRecordForm.name || !createRecordForm.content} data-testid="admin-create-record-btn">
+              {createRecordLoading && <Loader2 className="w-4 h-4 animate-spin me-2" />}<Plus className="w-4 h-4 me-1" />{t('form_create')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Create/Edit Plan */}
+      <Dialog open={showPlanDialog} onOpenChange={setShowPlanDialog}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto" data-testid="admin-plan-dialog">
+          <DialogHeader>
+            <DialogTitle>{editingPlan ? t('admin_edit_plan') : t('admin_add_plan')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {planFormError && <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm border border-destructive/20">{planFormError}</div>}
+            {!editingPlan && (
+              <div className="space-y-2">
+                <Label>{t('admin_plan_id')}</Label>
+                <Input value={planForm.plan_id} onChange={(e) => setPlanForm(p => ({ ...p, plan_id: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') }))} placeholder="e.g. starter" data-testid="admin-plan-id-input" />
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>{t('admin_plan_name')}</Label>
+                <Input value={planForm.name} onChange={(e) => setPlanForm(p => ({ ...p, name: e.target.value }))} placeholder="Pro" data-testid="admin-plan-name-input" />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('admin_plan_name_fa')}</Label>
+                <Input value={planForm.name_fa} onChange={(e) => setPlanForm(p => ({ ...p, name_fa: e.target.value }))} dir="rtl" placeholder="حرفه‌ای" data-testid="admin-plan-namefa-input" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>{t('admin_plan_price')}</Label>
+                <Input value={planForm.price} onChange={(e) => setPlanForm(p => ({ ...p, price: e.target.value }))} placeholder="$10/mo" data-testid="admin-plan-price-input" />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('admin_plan_price_fa')}</Label>
+                <Input value={planForm.price_fa} onChange={(e) => setPlanForm(p => ({ ...p, price_fa: e.target.value }))} dir="rtl" placeholder="۱۰ دلار/ماه" data-testid="admin-plan-pricefa-input" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>{t('admin_plan_limit')}</Label>
+                <Input type="number" min="0" value={planForm.record_limit} onChange={(e) => setPlanForm(p => ({ ...p, record_limit: parseInt(e.target.value) || 0 }))} data-testid="admin-plan-limit-input" />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('admin_plan_sort')}</Label>
+                <Input type="number" value={planForm.sort_order} onChange={(e) => setPlanForm(p => ({ ...p, sort_order: parseInt(e.target.value) || 0 }))} data-testid="admin-plan-sort-input" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>{t('admin_plan_features')}</Label>
+              <Textarea rows={3} value={planForm.features} onChange={(e) => setPlanForm(p => ({ ...p, features: e.target.value }))} placeholder="One feature per line" data-testid="admin-plan-features-input" />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('admin_plan_features_fa')}</Label>
+              <Textarea rows={3} value={planForm.features_fa} onChange={(e) => setPlanForm(p => ({ ...p, features_fa: e.target.value }))} dir="rtl" placeholder="هر خط یک امکان" data-testid="admin-plan-featuresfa-input" />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label>{t('admin_plan_popular')}</Label>
+              <Switch checked={planForm.popular} onCheckedChange={(v) => setPlanForm(p => ({ ...p, popular: v }))} data-testid="admin-plan-popular-switch" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPlanDialog(false)}>{t('cancel')}</Button>
+            <Button onClick={handleSavePlan} disabled={planFormLoading || (!editingPlan && !planForm.plan_id) || !planForm.name} data-testid="admin-plan-save-btn">
+              {planFormLoading && <Loader2 className="w-4 h-4 animate-spin me-2" />}
+              <Save className="w-4 h-4 me-1" />{t('save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Plan */}
+      <AlertDialog open={!!deletePlanId} onOpenChange={() => setDeletePlanId(null)}>
+        <AlertDialogContent data-testid="admin-delete-plan-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('admin_delete_plan')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('admin_delete_plan_confirm')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePlan} className="bg-destructive text-destructive-foreground hover:bg-destructive/90" data-testid="admin-delete-plan-confirm-btn">{t('delete_confirm')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
