@@ -92,6 +92,13 @@ class PlanUpdate(BaseModel):
 class PasswordUpdate(BaseModel):
     new_password: str = Field(min_length=6)
 
+class BulkPlanUpdate(BaseModel):
+    user_ids: List[str] = Field(min_length=1)
+    plan: str
+
+class BulkDeleteUsers(BaseModel):
+    user_ids: List[str] = Field(min_length=1)
+
 class PlanCreate(BaseModel):
     plan_id: str = Field(min_length=1)
     name: str = Field(min_length=1)
