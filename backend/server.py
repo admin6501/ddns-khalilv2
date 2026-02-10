@@ -621,6 +621,37 @@ async def startup():
     await db.users.create_index("id", unique=True)
     await db.dns_records.create_index("user_id")
     await db.dns_records.create_index("id", unique=True)
+    
+    # Seed admin user if not exists
+    admin_email = os.environ.get('ADMIN_EMAIL', 'admin@khalilv2.com')
+    admin_pass = os.environ.get('ADMIN_PASSWORD', 'admin123456')
+    existing_admin = await db.users.find_one({"email": admin_email})
+    if not existing_admin:
+        admin_doc = {
+            "id": str(uuid.uuid4()),
+            "email": admin_email,
+            "name": "Admin",
+            "password_hash": hash_password(admin_pass),
+            "plan": "enterprise",
+            "role": "admin",
+            "record_count": 0,
+            "record_limit": PLAN_LIMITS["enterprise"],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(admin_doc)
+        logger.info(f"Admin user created: {admin_email}")
+    
+    # Seed default settings if not exists
+    existing_settings = await db.settings.find_one({"key": "site_settings"})
+    if not existing_settings:
+        await db.settings.insert_one({
+            "key": "site_settings",
+            "telegram_id": "",
+            "telegram_url": "https://t.me/",
+            "contact_message_en": "Contact us on Telegram for pricing",
+            "contact_message_fa": "برای استعلام قیمت در تلگرام تماس بگیرید"
+        })
+    
     logger.info("Database indexes created")
 
 @app.on_event("shutdown")
