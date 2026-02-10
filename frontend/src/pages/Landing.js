@@ -27,6 +27,13 @@ export default function Landing() {
     { icon: ArrowUpRight, title: t('feature_6_title'), desc: t('feature_6_desc') },
   ];
 
+  const openTelegram = () => {
+    const url = contactInfo?.telegram_url || '#';
+    if (url && url !== '#' && url !== 'https://t.me/') {
+      window.open(url, '_blank');
+    }
+  };
+
   const plans = [
     {
       name: lang === 'fa' ? 'رایگان' : 'Free',
@@ -40,6 +47,7 @@ export default function Landing() {
       popular: false,
       cta: user ? t('pricing_current') : t('pricing_get_started'),
       action: () => user ? navigate('/dashboard') : navigate('/register'),
+      isTelegram: false,
     },
     {
       name: lang === 'fa' ? 'حرفه‌ای' : 'Pro',
@@ -51,8 +59,11 @@ export default function Landing() {
         ? ['۵۰ رکورد DNS', 'A، AAAA، CNAME', 'داشبورد پیشرفته', 'پشتیبانی اولویت‌دار', 'دسترسی API']
         : ['50 DNS Records', 'A, AAAA, CNAME', 'Advanced Dashboard', 'Priority Support', 'API Access'],
       popular: true,
-      cta: t('pricing_upgrade'),
-      action: () => {},
+      cta: lang === 'fa' 
+        ? (contactInfo?.contact_message_fa || t('pricing_contact_telegram'))
+        : (contactInfo?.contact_message_en || t('pricing_contact_telegram')),
+      action: openTelegram,
+      isTelegram: true,
     },
     {
       name: lang === 'fa' ? 'سازمانی' : 'Enterprise',
@@ -64,8 +75,11 @@ export default function Landing() {
         ? ['۵۰۰ رکورد DNS', 'تمام انواع رکورد', 'داشبورد ویژه', 'پشتیبانی ۲۴/۷', 'دسترسی API', 'دامنه اختصاصی']
         : ['500 DNS Records', 'All Record Types', 'Premium Dashboard', '24/7 Support', 'API Access', 'Custom Domain'],
       popular: false,
-      cta: t('pricing_contact'),
-      action: () => {},
+      cta: lang === 'fa' 
+        ? (contactInfo?.contact_message_fa || t('pricing_contact_telegram'))
+        : (contactInfo?.contact_message_en || t('pricing_contact_telegram')),
+      action: openTelegram,
+      isTelegram: true,
     },
   ];
 
