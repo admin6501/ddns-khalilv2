@@ -48,6 +48,13 @@ export default function Admin() {
   const [newPassword, setNewPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
 
+  // Bulk selection
+  const [selectedUserIds, setSelectedUserIds] = useState(new Set());
+  const [showBulkPlanDialog, setShowBulkPlanDialog] = useState(false);
+  const [bulkPlan, setBulkPlan] = useState('free');
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+
   // Records
   const [allRecords, setAllRecords] = useState([]);
   const [recordsLoading, setRecordsLoading] = useState(true);
