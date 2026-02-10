@@ -575,8 +575,74 @@ obtain_ssl() {
     return 0
   }
 
-  success "SSL certificate obtained and configured!"
-  success "Auto-renewal is enabled via certbot timer."
+  success "SSL certificate obtained!"
+
+  # Re-write Nginx config properly for SPA + SSL
+  info "Re-writing Nginx config with proper SPA routing..."
+  SSL_CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+  SSL_KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
+
+  cat > "/etc/nginx/sites-available/ddns-khalilv2" << NGXEOF
+# HTTP -> HTTPS redirect
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+    return 301 https://\$host\$request_uri;
+}
+
+# HTTPS server
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN};
+
+    ssl_certificate ${SSL_CERT};
+    ssl_certificate_key ${SSL_KEY};
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Frontend
+    root ${INSTALL_DIR}/frontend/build;
+    index index.html;
+
+    # Backend API
+    location /api/ {
+        proxy_pass http://127.0.0.1:8001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 300;
+        proxy_connect_timeout 300;
+        proxy_send_timeout 300;
+    }
+
+    # SPA: ALL other routes serve index.html (admin, dashboard, etc.)
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Gzip
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript image/svg+xml;
+}
+NGXEOF
+
+  ln -sf /etc/nginx/sites-available/ddns-khalilv2 /etc/nginx/sites-enabled/
+  nginx -t 2>&1 && systemctl reload nginx
+  success "Nginx reconfigured with SSL + SPA routing"
 
   # Update backend CORS to https
   sed -i "s|CORS_ORIGINS=.*|CORS_ORIGINS=https://${DOMAIN}|" "$INSTALL_DIR/backend/.env"
