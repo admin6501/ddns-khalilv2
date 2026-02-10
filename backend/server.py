@@ -377,6 +377,154 @@ async def delete_record(record_id: str, current_user: dict = Depends(get_current
     
     return {"message": "Record deleted successfully"}
 
+# ============== ADMIN ROUTES ==============
+
+@api_router.get("/admin/users")
+async def admin_list_users(admin: dict = Depends(get_admin_user)):
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    for u in users:
+        u["record_count"] = await db.dns_records.count_documents({"user_id": u["id"]})
+    return {"users": users, "count": len(users)}
+
+@api_router.delete("/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, admin: dict = Depends(get_admin_user)):
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.get("role") == "admin":
+        raise HTTPException(status_code=400, detail="Cannot delete admin user")
+    
+    # Delete all user's CF records
+    user_records = await db.dns_records.find({"user_id": user_id}, {"_id": 0}).to_list(500)
+    for rec in user_records:
+        try:
+            await cf_delete_record(rec["cf_record_id"])
+        except Exception as e:
+            logger.warning(f"Failed to delete CF record {rec['cf_record_id']}: {e}")
+    
+    await db.dns_records.delete_many({"user_id": user_id})
+    await db.users.delete_one({"id": user_id})
+    return {"message": f"User {user['email']} and {len(user_records)} records deleted"}
+
+@api_router.put("/admin/users/{user_id}/plan")
+async def admin_update_plan(user_id: str, plan_data: PlanUpdate, admin: dict = Depends(get_admin_user)):
+    if plan_data.plan not in PLAN_LIMITS:
+        raise HTTPException(status_code=400, detail=f"Invalid plan. Must be one of: {list(PLAN_LIMITS.keys())}")
+    
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    new_limit = PLAN_LIMITS[plan_data.plan]
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"plan": plan_data.plan, "record_limit": new_limit}}
+    )
+    return {"message": f"User plan updated to {plan_data.plan}", "record_limit": new_limit}
+
+@api_router.get("/admin/users/{user_id}/records")
+async def admin_get_user_records(user_id: str, admin: dict = Depends(get_admin_user)):
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    records = await db.dns_records.find({"user_id": user_id}, {"_id": 0}).to_list(500)
+    return {"user": user, "records": records, "count": len(records)}
+
+@api_router.get("/admin/records")
+async def admin_list_all_records(admin: dict = Depends(get_admin_user)):
+    records = await db.dns_records.find({}, {"_id": 0}).to_list(1000)
+    # Attach user email to each record
+    user_cache = {}
+    for rec in records:
+        uid = rec["user_id"]
+        if uid not in user_cache:
+            u = await db.users.find_one({"id": uid}, {"_id": 0, "email": 1, "name": 1})
+            user_cache[uid] = u or {"email": "unknown", "name": "unknown"}
+        rec["user_email"] = user_cache[uid].get("email", "unknown")
+        rec["user_name"] = user_cache[uid].get("name", "unknown")
+    return {"records": records, "count": len(records)}
+
+@api_router.post("/admin/dns/records", status_code=201)
+async def admin_create_record(record_data: AdminDNSRecordCreate, admin: dict = Depends(get_admin_user)):
+    if record_data.record_type not in ["A", "AAAA", "CNAME"]:
+        raise HTTPException(status_code=400, detail="Only A, AAAA, and CNAME records are supported")
+    
+    user = await db.users.find_one({"id": record_data.user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    full_name = f"{record_data.name}.{DOMAIN_NAME}" if record_data.name != "@" else DOMAIN_NAME
+    
+    cf_result = await cf_create_record(
+        name=record_data.name, record_type=record_data.record_type,
+        content=record_data.content, ttl=record_data.ttl, proxied=record_data.proxied
+    )
+    
+    record_id = str(uuid.uuid4())
+    record_doc = {
+        "id": record_id, "cf_record_id": cf_result["id"], "user_id": record_data.user_id,
+        "name": record_data.name, "full_name": full_name, "record_type": record_data.record_type,
+        "content": record_data.content, "ttl": record_data.ttl, "proxied": record_data.proxied,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.dns_records.insert_one(record_doc)
+    await db.users.update_one({"id": record_data.user_id}, {"$inc": {"record_count": 1}})
+    
+    return {k: v for k, v in record_doc.items() if k != "_id"}
+
+@api_router.delete("/admin/dns/records/{record_id}")
+async def admin_delete_record(record_id: str, admin: dict = Depends(get_admin_user)):
+    record = await db.dns_records.find_one({"id": record_id}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=404, detail="Record not found")
+    
+    await cf_delete_record(record["cf_record_id"])
+    await db.dns_records.delete_one({"id": record_id})
+    await db.users.update_one({"id": record["user_id"]}, {"$inc": {"record_count": -1}})
+    return {"message": "Record deleted successfully"}
+
+# ============== SETTINGS ROUTES ==============
+
+@api_router.get("/admin/settings")
+async def admin_get_settings(admin: dict = Depends(get_admin_user)):
+    settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
+    if not settings:
+        settings = {
+            "key": "site_settings",
+            "telegram_id": "",
+            "telegram_url": "",
+            "contact_message_en": "Contact us on Telegram for pricing",
+            "contact_message_fa": "برای استعلام قیمت در تلگرام تماس بگیرید"
+        }
+    return settings
+
+@api_router.put("/admin/settings")
+async def admin_update_settings(settings_data: SettingsUpdate, admin: dict = Depends(get_admin_user)):
+    update_fields = {k: v for k, v in settings_data.model_dump().items() if v is not None}
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    await db.settings.update_one(
+        {"key": "site_settings"},
+        {"$set": update_fields},
+        upsert=True
+    )
+    settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
+    return settings
+
+# Public endpoint for contact info
+@api_router.get("/settings/contact")
+async def get_contact_info():
+    settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
+    if not settings:
+        return {"telegram_id": "", "telegram_url": "", "contact_message_en": "", "contact_message_fa": ""}
+    return {
+        "telegram_id": settings.get("telegram_id", ""),
+        "telegram_url": settings.get("telegram_url", ""),
+        "contact_message_en": settings.get("contact_message_en", ""),
+        "contact_message_fa": settings.get("contact_message_fa", "")
+    }
+
 # ============== PLANS ROUTES ==============
 
 @api_router.get("/plans")
