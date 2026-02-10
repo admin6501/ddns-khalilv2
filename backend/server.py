@@ -87,7 +87,33 @@ class DNSRecordUpdate(BaseModel):
     proxied: Optional[bool] = None
 
 class PlanUpdate(BaseModel):
-    plan: str = Field(description="free, pro, or enterprise")
+    plan: str = Field(description="plan id")
+
+class PasswordUpdate(BaseModel):
+    new_password: str = Field(min_length=6)
+
+class PlanCreate(BaseModel):
+    plan_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    name_fa: str = Field(min_length=1)
+    price: str
+    price_fa: str
+    record_limit: int = Field(ge=0)
+    features: List[str] = []
+    features_fa: List[str] = []
+    popular: bool = False
+    sort_order: int = Field(default=0)
+
+class PlanEdit(BaseModel):
+    name: Optional[str] = None
+    name_fa: Optional[str] = None
+    price: Optional[str] = None
+    price_fa: Optional[str] = None
+    record_limit: Optional[int] = Field(default=None, ge=0)
+    features: Optional[List[str]] = None
+    features_fa: Optional[List[str]] = None
+    popular: Optional[bool] = None
+    sort_order: Optional[int] = None
 
 class SettingsUpdate(BaseModel):
     telegram_id: Optional[str] = None
