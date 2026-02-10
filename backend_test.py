@@ -917,7 +917,14 @@ class DNSAPITester:
         self.test_admin_update_settings()
         self.test_public_contact_api()
         
-        # 9. Test access control
+        # 9. Test bulk operations
+        self.test_create_bulk_test_users()
+        self.test_admin_bulk_update_plan()
+        self.test_admin_bulk_delete_users()
+        self.test_admin_bulk_exclude_admin_users()
+        self.test_admin_bulk_delete_exclude_admin_users()
+        
+        # 10. Test access control
         self.test_non_admin_access_denied()
         
         # 10. Test regular DNS record operations
