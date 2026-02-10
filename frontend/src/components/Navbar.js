@@ -183,6 +183,12 @@ export default function Navbar() {
                     <LayoutDashboard className="w-4 h-4 inline me-2" />
                     {t('nav_dashboard')}
                   </button>
+                  {isAdmin && (
+                    <button onClick={() => { navigate('/admin'); setMobileOpen(false); }} className="block w-full text-start px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted">
+                      <Crown className="w-4 h-4 inline me-2" />
+                      {t('nav_admin')}
+                    </button>
+                  )}
                   <button onClick={() => { handleLogout(); setMobileOpen(false); }} className="block w-full text-start px-3 py-2 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10">
                     <LogOut className="w-4 h-4 inline me-2" />
                     {t('nav_logout')}
