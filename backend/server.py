@@ -434,19 +434,35 @@ async def admin_delete_user(user_id: str, admin: dict = Depends(get_admin_user))
 
 @api_router.put("/admin/users/{user_id}/plan")
 async def admin_update_plan(user_id: str, plan_data: PlanUpdate, admin: dict = Depends(get_admin_user)):
-    if plan_data.plan not in PLAN_LIMITS:
-        raise HTTPException(status_code=400, detail=f"Invalid plan. Must be one of: {list(PLAN_LIMITS.keys())}")
+    # Look up plan from DB
+    plan_doc = await db.plans.find_one({"plan_id": plan_data.plan}, {"_id": 0})
+    if not plan_doc:
+        # Fallback to hardcoded
+        if plan_data.plan not in PLAN_LIMITS:
+            raise HTTPException(status_code=400, detail=f"Invalid plan: {plan_data.plan}")
+        new_limit = PLAN_LIMITS[plan_data.plan]
+    else:
+        new_limit = plan_doc["record_limit"]
     
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    new_limit = PLAN_LIMITS[plan_data.plan]
     await db.users.update_one(
         {"id": user_id},
         {"$set": {"plan": plan_data.plan, "record_limit": new_limit}}
     )
     return {"message": f"User plan updated to {plan_data.plan}", "record_limit": new_limit}
+
+@api_router.put("/admin/users/{user_id}/password")
+async def admin_change_password(user_id: str, pw_data: PasswordUpdate, admin: dict = Depends(get_admin_user)):
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    new_hash = hash_password(pw_data.new_password)
+    await db.users.update_one({"id": user_id}, {"$set": {"password_hash": new_hash}})
+    return {"message": f"Password updated for {user['email']}"}
 
 @api_router.get("/admin/users/{user_id}/records")
 async def admin_get_user_records(user_id: str, admin: dict = Depends(get_admin_user)):
