@@ -123,6 +123,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+async def get_admin_user(current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
 # ============== CLOUDFLARE API ==============
 
 async def cf_create_record(name: str, record_type: str, content: str, ttl: int = 1, proxied: bool = False):
