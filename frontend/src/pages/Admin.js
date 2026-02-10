@@ -902,6 +902,57 @@ export default function Admin() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Change Plan */}
+      <Dialog open={showBulkPlanDialog} onOpenChange={setShowBulkPlanDialog}>
+        <DialogContent className="sm:max-w-sm" data-testid="bulk-plan-dialog">
+          <DialogHeader>
+            <DialogTitle>{t('admin_bulk_change_plan')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {t('admin_bulk_confirm_plan').replace('{count}', selectedUserIds.size)}
+            </p>
+            <Select value={bulkPlan} onValueChange={setBulkPlan}>
+              <SelectTrigger data-testid="bulk-plan-select"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {plans.map(p => (
+                  <SelectItem key={p.plan_id} value={p.plan_id}>{p.name} ({p.record_limit} records)</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkPlanDialog(false)}>{t('cancel')}</Button>
+            <Button onClick={handleBulkPlanChange} disabled={bulkLoading} data-testid="bulk-plan-confirm-btn">
+              {bulkLoading && <Loader2 className="w-4 h-4 animate-spin me-2" />}{t('save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete */}
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent data-testid="bulk-delete-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('admin_bulk_delete')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('admin_bulk_confirm_delete').replace('{count}', selectedUserIds.size)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={bulkLoading}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="bulk-delete-confirm-btn"
+            >
+              {bulkLoading && <Loader2 className="w-4 h-4 animate-spin me-2" />}{t('delete_confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
