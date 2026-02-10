@@ -397,6 +397,27 @@ export default function Admin() {
               <h2 className="text-xl font-semibold">{t('admin_users')}</h2>
               <Button variant="ghost" size="sm" onClick={fetchUsers} data-testid="admin-refresh-users"><RefreshCw className="w-4 h-4" /></Button>
             </div>
+
+            {/* Bulk Action Bar */}
+            {selectedUserIds.size > 0 && (
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5 animate-fade-in" data-testid="bulk-action-bar">
+                <Badge variant="default" className="text-sm">
+                  {selectedUserIds.size} {t('admin_selected')}
+                </Badge>
+                <div className="flex gap-2 ms-auto">
+                  <Button size="sm" variant="outline" onClick={() => { setBulkPlan('free'); setShowBulkPlanDialog(true); }} data-testid="bulk-change-plan-btn">
+                    <ArrowUpDown className="w-4 h-4 me-1.5" />{t('admin_bulk_change_plan')}
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={() => setShowBulkDeleteDialog(true)} data-testid="bulk-delete-btn">
+                    <Trash2 className="w-4 h-4 me-1.5" />{t('admin_bulk_delete')}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedUserIds(new Set())} data-testid="bulk-clear-btn">
+                    {t('cancel')}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="rounded-xl border border-border bg-card overflow-hidden">
               {usersLoading ? (
                 <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
@@ -407,6 +428,13 @@ export default function Admin() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-12">
+                          <Checkbox
+                            checked={selectedUserIds.size > 0 && selectedUserIds.size === users.filter(u => u.role !== 'admin').length}
+                            onCheckedChange={toggleSelectAll}
+                            data-testid="select-all-checkbox"
+                          />
+                        </TableHead>
                         <TableHead>{lang === 'fa' ? 'نام' : 'Name'}</TableHead>
                         <TableHead>{lang === 'fa' ? 'ایمیل' : 'Email'}</TableHead>
                         <TableHead>{lang === 'fa' ? 'پلن' : 'Plan'}</TableHead>
@@ -417,7 +445,20 @@ export default function Admin() {
                     </TableHeader>
                     <TableBody>
                       {users.map((u) => (
-                        <TableRow key={u.id} data-testid={`admin-user-row-${u.id}`}>
+                        <TableRow
+                          key={u.id}
+                          className={selectedUserIds.has(u.id) ? 'bg-primary/5' : ''}
+                          data-testid={`admin-user-row-${u.id}`}
+                        >
+                          <TableCell>
+                            {u.role !== 'admin' ? (
+                              <Checkbox
+                                checked={selectedUserIds.has(u.id)}
+                                onCheckedChange={() => toggleUserSelection(u.id)}
+                                data-testid={`select-user-${u.id}`}
+                              />
+                            ) : <div className="w-4" />}
+                          </TableCell>
                           <TableCell className="font-medium">{u.name}</TableCell>
                           <TableCell className="font-mono text-sm">{u.email}</TableCell>
                           <TableCell>
