@@ -471,6 +471,57 @@ async def admin_change_password(user_id: str, pw_data: PasswordUpdate, admin: di
     await db.users.update_one({"id": user_id}, {"$set": {"password_hash": new_hash}})
     return {"message": f"Password updated for {user['email']}"}
 
+@api_router.post("/admin/users/bulk/plan")
+async def admin_bulk_update_plan(data: BulkPlanUpdate, admin: dict = Depends(get_admin_user)):
+    plan_doc = await db.plans.find_one({"plan_id": data.plan}, {"_id": 0})
+    if not plan_doc:
+        if data.plan not in PLAN_LIMITS:
+            raise HTTPException(status_code=400, detail=f"Invalid plan: {data.plan}")
+        new_limit = PLAN_LIMITS[data.plan]
+    else:
+        new_limit = plan_doc["record_limit"]
+    
+    # Filter out admin users
+    non_admin_ids = []
+    for uid in data.user_ids:
+        u = await db.users.find_one({"id": uid, "role": {"$ne": "admin"}}, {"_id": 0, "id": 1})
+        if u:
+            non_admin_ids.append(uid)
+    
+    if not non_admin_ids:
+        raise HTTPException(status_code=400, detail="No eligible users to update")
+    
+    result = await db.users.update_many(
+        {"id": {"$in": non_admin_ids}},
+        {"$set": {"plan": data.plan, "record_limit": new_limit}}
+    )
+    return {"message": f"{result.modified_count} users updated to {data.plan}", "updated_count": result.modified_count}
+
+@api_router.post("/admin/users/bulk/delete")
+async def admin_bulk_delete_users(data: BulkDeleteUsers, admin: dict = Depends(get_admin_user)):
+    deleted_count = 0
+    deleted_records = 0
+    
+    for uid in data.user_ids:
+        user = await db.users.find_one({"id": uid}, {"_id": 0})
+        if not user or user.get("role") == "admin":
+            continue
+        
+        # Delete CF records
+        user_records = await db.dns_records.find({"user_id": uid}, {"_id": 0}).to_list(500)
+        for rec in user_records:
+            try:
+                await cf_delete_record(rec["cf_record_id"])
+            except Exception as e:
+                logger.warning(f"Failed to delete CF record {rec['cf_record_id']}: {e}")
+        
+        await db.dns_records.delete_many({"user_id": uid})
+        await db.users.delete_one({"id": uid})
+        deleted_count += 1
+        deleted_records += len(user_records)
+    
+    return {"message": f"{deleted_count} users and {deleted_records} records deleted", "deleted_count": deleted_count}
+
 @api_router.get("/admin/users/{user_id}/records")
 async def admin_get_user_records(user_id: str, admin: dict = Depends(get_admin_user)):
     user = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
