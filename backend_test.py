@@ -927,10 +927,10 @@ class DNSAPITester:
         # 10. Test access control
         self.test_non_admin_access_denied()
         
-        # 10. Test regular DNS record operations
+        # 11. Test regular DNS record operations
         self.test_list_dns_records_empty()
         
-        # 11. Create first DNS record (A record)
+        # 12. Create first DNS record (A record)
         record1 = {
             "name": f"test1-{int(datetime.now().timestamp())}",
             "record_type": "A",
@@ -939,7 +939,7 @@ class DNSAPITester:
         }
         self.test_create_dns_record(record1)
         
-        # 12. Create second DNS record (CNAME record)
+        # 13. Create second DNS record (CNAME record)
         record2 = {
             "name": f"test2-{int(datetime.now().timestamp())}",
             "record_type": "CNAME", 
@@ -948,17 +948,17 @@ class DNSAPITester:
         }
         self.test_create_dns_record(record2)
         
-        # 13. List records with data
+        # 14. List records with data
         self.test_list_dns_records_with_data()
         
-        # 14. Update first record
+        # 15. Update first record
         if self.created_records:
             self.test_update_dns_record(self.created_records[0])
             
-        # 15. Test record limit enforcement
+        # 16. Test record limit enforcement
         self.test_record_limit_enforcement()
         
-        # 16. Clean up
+        # 17. Clean up
         self.cleanup_records()
         
         # Summary
