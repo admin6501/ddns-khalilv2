@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import { contactAPI } from '../lib/api';
+import { contactAPI, plansAPI } from '../lib/api';
 import { Globe, Shield, Zap, Server, LayoutDashboard, ArrowUpRight, Check, ChevronRight, Send } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
@@ -13,9 +13,11 @@ export default function Landing() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [contactInfo, setContactInfo] = useState(null);
+  const [dbPlans, setDbPlans] = useState([]);
 
   useEffect(() => {
     contactAPI.getContactInfo().then(res => setContactInfo(res.data)).catch(() => {});
+    plansAPI.getPlans().then(res => setDbPlans(res.data.plans || [])).catch(() => {});
   }, []);
 
   const features = [
@@ -34,54 +36,29 @@ export default function Landing() {
     }
   };
 
-  const plans = [
-    {
-      name: lang === 'fa' ? 'رایگان' : 'Free',
-      price: lang === 'fa' ? '۰' : '0',
-      currency: '$',
-      period: '',
-      records: 2,
-      features: lang === 'fa'
-        ? ['۲ رکورد DNS', 'A، AAAA، CNAME', 'داشبورد پایه', 'پشتیبانی انجمن']
-        : ['2 DNS Records', 'A, AAAA, CNAME', 'Basic Dashboard', 'Community Support'],
-      popular: false,
-      cta: user ? t('pricing_current') : t('pricing_get_started'),
-      action: () => user ? navigate('/dashboard') : navigate('/register'),
-      isTelegram: false,
-    },
-    {
-      name: lang === 'fa' ? 'حرفه‌ای' : 'Pro',
-      price: '5',
-      currency: '$',
-      period: lang === 'fa' ? '/ماه' : '/mo',
-      records: 50,
-      features: lang === 'fa'
-        ? ['۵۰ رکورد DNS', 'A، AAAA، CNAME', 'داشبورد پیشرفته', 'پشتیبانی اولویت‌دار', 'دسترسی API']
-        : ['50 DNS Records', 'A, AAAA, CNAME', 'Advanced Dashboard', 'Priority Support', 'API Access'],
-      popular: true,
-      cta: lang === 'fa' 
-        ? (contactInfo?.contact_message_fa || t('pricing_contact_telegram'))
-        : (contactInfo?.contact_message_en || t('pricing_contact_telegram')),
-      action: openTelegram,
-      isTelegram: true,
-    },
-    {
-      name: lang === 'fa' ? 'سازمانی' : 'Enterprise',
-      price: '20',
-      currency: '$',
-      period: lang === 'fa' ? '/ماه' : '/mo',
-      records: 500,
-      features: lang === 'fa'
-        ? ['۵۰۰ رکورد DNS', 'تمام انواع رکورد', 'داشبورد ویژه', 'پشتیبانی ۲۴/۷', 'دسترسی API', 'دامنه اختصاصی']
-        : ['500 DNS Records', 'All Record Types', 'Premium Dashboard', '24/7 Support', 'API Access', 'Custom Domain'],
-      popular: false,
-      cta: lang === 'fa' 
-        ? (contactInfo?.contact_message_fa || t('pricing_contact_telegram'))
-        : (contactInfo?.contact_message_en || t('pricing_contact_telegram')),
-      action: openTelegram,
-      isTelegram: true,
-    },
-  ];
+  // Build plans dynamically from DB
+  const isFreePlan = (p) => p.plan_id === 'free' || p.price === '$0' || p.record_limit === 0;
+  
+  const plans = dbPlans.map((p) => {
+    const isFree = isFreePlan(p);
+    return {
+      name: lang === 'fa' ? (p.name_fa || p.name) : p.name,
+      price: p.price || '$0',
+      price_fa: p.price_fa || p.price,
+      records: p.record_limit,
+      features: lang === 'fa' ? (p.features_fa || p.features || []) : (p.features || []),
+      popular: p.popular || false,
+      cta: isFree
+        ? (user ? t('pricing_current') : t('pricing_get_started'))
+        : (lang === 'fa'
+            ? (contactInfo?.contact_message_fa || t('pricing_contact_telegram'))
+            : (contactInfo?.contact_message_en || t('pricing_contact_telegram'))),
+      action: isFree
+        ? () => user ? navigate('/dashboard') : navigate('/register')
+        : openTelegram,
+      isTelegram: !isFree,
+    };
+  });
 
   return (
     <div className="min-h-screen">
