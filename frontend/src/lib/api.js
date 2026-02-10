@@ -54,12 +54,18 @@ export const adminAPI = {
   listUsers: () => api.get('/admin/users'),
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
   updateUserPlan: (id, plan) => api.put(`/admin/users/${id}/plan`, { plan }),
+  changeUserPassword: (id, new_password) => api.put(`/admin/users/${id}/password`, { new_password }),
   getUserRecords: (id) => api.get(`/admin/users/${id}/records`),
   listAllRecords: () => api.get('/admin/records'),
   createRecord: (data) => api.post('/admin/dns/records', data),
   deleteRecord: (id) => api.delete(`/admin/dns/records/${id}`),
   getSettings: () => api.get('/admin/settings'),
   updateSettings: (data) => api.put('/admin/settings', data),
+  // Plans CRUD
+  listPlans: () => api.get('/admin/plans'),
+  createPlan: (data) => api.post('/admin/plans', data),
+  updatePlan: (plan_id, data) => api.put(`/admin/plans/${plan_id}`, data),
+  deletePlan: (plan_id) => api.delete(`/admin/plans/${plan_id}`),
 };
 
 // Contact
