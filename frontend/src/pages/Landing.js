@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Globe, Shield, Zap, Server, LayoutDashboard, ArrowUpRight, Check, ChevronRight } from 'lucide-react';
+import { contactAPI } from '../lib/api';
+import { Globe, Shield, Zap, Server, LayoutDashboard, ArrowUpRight, Check, ChevronRight, Send } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
 const DOMAIN = "khalilv2.com";
@@ -11,6 +12,11 @@ export default function Landing() {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [contactInfo, setContactInfo] = useState(null);
+
+  useEffect(() => {
+    contactAPI.getContactInfo().then(res => setContactInfo(res.data)).catch(() => {});
+  }, []);
 
   const features = [
     { icon: Globe, title: t('feature_1_title'), desc: t('feature_1_desc') },
