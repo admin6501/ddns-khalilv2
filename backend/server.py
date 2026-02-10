@@ -187,8 +187,9 @@ async def register(user_data: UserRegister):
         "name": user_data.name,
         "password_hash": hash_password(user_data.password),
         "plan": "free",
+        "role": "user",
         "record_count": 0,
-        "record_limit": FREE_RECORD_LIMIT,
+        "record_limit": PLAN_LIMITS["free"],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.users.insert_one(user_doc)
@@ -200,8 +201,9 @@ async def register(user_data: UserRegister):
             "email": user_data.email,
             "name": user_data.name,
             "plan": "free",
+            "role": "user",
             "record_count": 0,
-            "record_limit": FREE_RECORD_LIMIT,
+            "record_limit": PLAN_LIMITS["free"],
             "created_at": user_doc["created_at"]
         }
     }
