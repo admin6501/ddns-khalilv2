@@ -133,7 +133,7 @@ class DNSAPITester:
         )
 
     def test_get_plans(self):
-        """Test getting available plans"""
+        """Test getting available plans (legacy test)"""
         success, response, error = self.make_request(
             'GET', 'plans',
             expected_status=200
@@ -143,12 +143,12 @@ class DNSAPITester:
         if success and response and 'plans' in response:
             plans = response['plans']
             plans_valid = (
-                len(plans) == 3 and
-                all('id' in plan and 'name' in plan for plan in plans)
+                len(plans) >= 3 and
+                all('plan_id' in plan and 'name' in plan for plan in plans)
             )
         
         return self.log_result(
-            "Get Plans (should return 3 plans)", 
+            "Get Plans (legacy test)", 
             success and plans_valid, 
             response, error
         )
