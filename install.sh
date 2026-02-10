@@ -4,7 +4,6 @@
 #  GitHub: https://github.com/admin6501/ddns-khalilv2
 #  Supports: Ubuntu 20.04/22.04/24.04, Debian 11/12
 #═══════════════════════════════════════════════════════════════════════════════
-set -euo pipefail
 
 # ─── Colors & Helpers ────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -24,6 +23,37 @@ separator() {
   echo -e "${CYAN}─────────────────────────────────────────────────────────────${NC}"
 }
 
+# Clean read: strips \r and trailing whitespace (fixes mobile terminals)
+clean_read() {
+  local varname="$1"
+  local prompt="$2"
+  local default="${3:-}"
+  local raw_val
+
+  read -rp "$(echo -e "${CYAN}[?]${NC} ${prompt}")" raw_val
+  # Strip \r, leading/trailing whitespace
+  raw_val=$(echo "$raw_val" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+  if [[ -z "$raw_val" && -n "$default" ]]; then
+    raw_val="$default"
+  fi
+
+  eval "$varname=\"\$raw_val\""
+}
+
+# Silent read for passwords
+clean_read_silent() {
+  local varname="$1"
+  local prompt="$2"
+  local raw_val
+
+  read -srp "$(echo -e "${CYAN}[?]${NC} ${prompt}")" raw_val
+  echo ""
+  raw_val=$(echo "$raw_val" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+  eval "$varname=\"\$raw_val\""
+}
+
 # ─── Root Check ──────────────────────────────────────────────────────────────
 if [[ $EUID -ne 0 ]]; then
   fatal "This script must be run as root. Use: sudo bash $0"
@@ -34,8 +64,9 @@ detect_os() {
   if [[ -f /etc/os-release ]]; then
     . /etc/os-release
     OS_ID="$ID"
-    OS_VERSION="$VERSION_ID"
-    OS_NAME="$PRETTY_NAME"
+    OS_VERSION="${VERSION_ID:-unknown}"
+    OS_NAME="${PRETTY_NAME:-$ID}"
+    OS_CODENAME="${VERSION_CODENAME:-$(lsb_release -cs 2>/dev/null || echo 'unknown')}"
   else
     fatal "Cannot detect OS. /etc/os-release not found."
   fi
@@ -70,12 +101,16 @@ collect_variables() {
   echo ""
 
   # Domain
-  read -rp "$(echo -e "${CYAN}[?]${NC} Domain name (e.g. khalilv2.com): ")" DOMAIN
-  [[ -z "$DOMAIN" ]] && fatal "Domain is required."
+  clean_read DOMAIN "Domain name (e.g. khalilv2.com): "
+  if [[ -z "$DOMAIN" ]]; then
+    fatal "Domain is required."
+  fi
 
   # Admin email for SSL
-  read -rp "$(echo -e "${CYAN}[?]${NC} Email for SSL certificate (Let's Encrypt): ")" SSL_EMAIL
-  [[ -z "$SSL_EMAIL" ]] && fatal "Email is required for SSL."
+  clean_read SSL_EMAIL "Email for SSL certificate (Let's Encrypt): "
+  if [[ -z "$SSL_EMAIL" ]]; then
+    fatal "Email is required for SSL."
+  fi
 
   echo ""
   separator
@@ -83,11 +118,15 @@ collect_variables() {
   separator
   echo ""
 
-  read -rp "$(echo -e "${CYAN}[?]${NC} Cloudflare API Token: ")" CF_API_TOKEN
-  [[ -z "$CF_API_TOKEN" ]] && fatal "Cloudflare API Token is required."
+  clean_read CF_API_TOKEN "Cloudflare API Token: "
+  if [[ -z "$CF_API_TOKEN" ]]; then
+    fatal "Cloudflare API Token is required."
+  fi
 
-  read -rp "$(echo -e "${CYAN}[?]${NC} Cloudflare Zone ID: ")" CF_ZONE_ID
-  [[ -z "$CF_ZONE_ID" ]] && fatal "Cloudflare Zone ID is required."
+  clean_read CF_ZONE_ID "Cloudflare Zone ID: "
+  if [[ -z "$CF_ZONE_ID" ]]; then
+    fatal "Cloudflare Zone ID is required."
+  fi
 
   echo ""
   separator
@@ -95,16 +134,14 @@ collect_variables() {
   separator
   echo ""
 
-  read -rp "$(echo -e "${CYAN}[?]${NC} Admin email [admin@${DOMAIN}]: ")" ADMIN_EMAIL
-  ADMIN_EMAIL="${ADMIN_EMAIL:-admin@${DOMAIN}}"
+  clean_read ADMIN_EMAIL "Admin email [admin@${DOMAIN}]: " "admin@${DOMAIN}"
 
   while true; do
-    read -srp "$(echo -e "${CYAN}[?]${NC} Admin password (min 6 chars): ")" ADMIN_PASSWORD
-    echo ""
+    clean_read_silent ADMIN_PASSWORD "Admin password (min 6 chars): "
     if [[ ${#ADMIN_PASSWORD} -ge 6 ]]; then
       break
     fi
-    warn "Password must be at least 6 characters."
+    warn "Password must be at least 6 characters. Try again."
   done
 
   echo ""
@@ -113,11 +150,8 @@ collect_variables() {
   separator
   echo ""
 
-  read -rp "$(echo -e "${CYAN}[?]${NC} MongoDB URL [mongodb://localhost:27017]: ")" MONGO_URL
-  MONGO_URL="${MONGO_URL:-mongodb://localhost:27017}"
-
-  read -rp "$(echo -e "${CYAN}[?]${NC} Database name [khalilv2_dns]: ")" DB_NAME
-  DB_NAME="${DB_NAME:-khalilv2_dns}"
+  clean_read MONGO_URL "MongoDB URL [mongodb://localhost:27017]: " "mongodb://localhost:27017"
+  clean_read DB_NAME "Database name [khalilv2_dns]: " "khalilv2_dns"
 
   echo ""
   separator
@@ -125,11 +159,10 @@ collect_variables() {
   separator
   echo ""
 
-  read -rp "$(echo -e "${CYAN}[?]${NC} Install directory [/opt/ddns-khalilv2]: ")" INSTALL_DIR
-  INSTALL_DIR="${INSTALL_DIR:-/opt/ddns-khalilv2}"
+  clean_read INSTALL_DIR "Install directory [/opt/ddns-khalilv2]: " "/opt/ddns-khalilv2"
 
   # Generate JWT secret
-  JWT_SECRET=$(openssl rand -hex 32)
+  JWT_SECRET=$(openssl rand -hex 32 2>/dev/null || date +%s%N | sha256sum | head -c 64)
 
   echo ""
   separator
@@ -145,45 +178,56 @@ collect_variables() {
   echo -e "  Install Dir:     ${GREEN}$INSTALL_DIR${NC}"
   echo ""
 
-  read -rp "$(echo -e "${CYAN}[?]${NC} Proceed with installation? [Y/n]: ")" CONFIRM
-  CONFIRM="${CONFIRM:-Y}"
-  [[ ! "$CONFIRM" =~ ^[Yy]$ ]] && fatal "Installation cancelled."
+  clean_read CONFIRM "Proceed with installation? [Y/n]: " "Y"
+
+  case "$CONFIRM" in
+    [Yy]|[Yy][Ee][Ss]) 
+      info "Starting installation..."
+      ;;
+    *)
+      fatal "Installation cancelled by user."
+      ;;
+  esac
 }
 
 # ─── Install Prerequisites ───────────────────────────────────────────────────
 install_prerequisites() {
   separator
-  echo -e "${BOLD}Installing Prerequisites${NC}"
+  echo -e "${BOLD}Step 1/8: Installing Prerequisites${NC}"
   separator
 
   info "Updating package lists..."
-  apt-get update -qq
+  apt-get update -qq 2>/dev/null || {
+    warn "apt-get update had issues, continuing anyway..."
+  }
 
-  # List of required packages
-  PACKAGES=(
-    curl wget git build-essential software-properties-common
-    python3 python3-pip python3-venv
-    nginx certbot python3-certbot-nginx
-    gnupg
-  )
+  # Ensure basic tools
+  info "Installing essential packages..."
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+    curl wget git build-essential software-properties-common \
+    python3 python3-pip python3-venv \
+    nginx certbot python3-certbot-nginx \
+    gnupg lsb-release ca-certificates 2>/dev/null || {
+    warn "Some packages may have failed, checking individually..."
+  }
 
-  for pkg in "${PACKAGES[@]}"; do
-    if dpkg -s "$pkg" &>/dev/null; then
-      success "$pkg already installed"
+  # Verify critical packages
+  for cmd in python3 git curl nginx certbot; do
+    if command -v "$cmd" &>/dev/null; then
+      success "$cmd is available"
     else
-      info "Installing $pkg..."
-      apt-get install -y -qq "$pkg" || warn "Failed to install $pkg, continuing..."
+      error "$cmd is NOT available - trying to install..."
+      apt-get install -y -qq "$cmd" 2>/dev/null || warn "Failed to install $cmd"
     fi
   done
 
   # ── Node.js 20.x ──
   if command -v node &>/dev/null; then
-    NODE_VER=$(node -v)
-    success "Node.js already installed: $NODE_VER"
+    success "Node.js already installed: $(node -v)"
   else
     info "Installing Node.js 20.x..."
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-    apt-get install -y -qq nodejs
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - 2>/dev/null
+    apt-get install -y -qq nodejs 2>/dev/null || fatal "Failed to install Node.js"
     success "Node.js installed: $(node -v)"
   fi
 
@@ -192,7 +236,7 @@ install_prerequisites() {
     success "Yarn already installed: $(yarn -v)"
   else
     info "Installing Yarn..."
-    npm install -g yarn
+    npm install -g yarn 2>/dev/null || fatal "Failed to install Yarn"
     success "Yarn installed: $(yarn -v)"
   fi
 
@@ -205,38 +249,49 @@ install_prerequisites() {
   fi
 
   # Ensure MongoDB is running
-  if systemctl is-active --quiet mongod; then
+  if systemctl is-active --quiet mongod 2>/dev/null; then
     success "MongoDB is running"
   else
     info "Starting MongoDB..."
-    systemctl start mongod || true
-    systemctl enable mongod || true
-    if systemctl is-active --quiet mongod; then
+    systemctl start mongod 2>/dev/null || true
+    systemctl enable mongod 2>/dev/null || true
+    sleep 2
+    if systemctl is-active --quiet mongod 2>/dev/null; then
       success "MongoDB started"
     else
-      warn "MongoDB may not be running. Check manually: systemctl status mongod"
+      warn "MongoDB may not be running. Check: systemctl status mongod"
+      warn "If using external MongoDB, this is OK."
     fi
   fi
+
+  echo ""
+  success "Prerequisites check complete!"
 }
 
 install_mongodb() {
   # Import MongoDB GPG key
   curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | \
-    gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
+    gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg 2>/dev/null || {
+    warn "Failed to import MongoDB GPG key"
+    return 1
+  }
 
   # Add repo based on OS
   if [[ "$OS_ID" == "ubuntu" ]]; then
-    echo "deb [signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] https://repo.mongodb.org/apt/ubuntu $(lsb_release -cs)/mongodb-org/7.0 multiverse" \
+    echo "deb [signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] https://repo.mongodb.org/apt/ubuntu ${OS_CODENAME}/mongodb-org/7.0 multiverse" \
       > /etc/apt/sources.list.d/mongodb-org-7.0.list
   elif [[ "$OS_ID" == "debian" ]]; then
-    echo "deb [signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] https://repo.mongodb.org/apt/debian $(lsb_release -cs)/mongodb-org/7.0 main" \
+    echo "deb [signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] https://repo.mongodb.org/apt/debian ${OS_CODENAME}/mongodb-org/7.0 main" \
       > /etc/apt/sources.list.d/mongodb-org-7.0.list
   fi
 
-  apt-get update -qq
-  apt-get install -y -qq mongodb-org || {
-    warn "MongoDB 7.0 install failed, trying mongosh standalone..."
-    apt-get install -y -qq mongodb || true
+  apt-get update -qq 2>/dev/null
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq mongodb-org 2>/dev/null || {
+    warn "MongoDB 7.0 from official repo failed. Trying system package..."
+    apt-get install -y -qq mongodb 2>/dev/null || {
+      warn "Could not install MongoDB. Please install manually."
+      return 1
+    }
   }
 
   systemctl start mongod 2>/dev/null || true
@@ -247,32 +302,47 @@ install_mongodb() {
 # ─── Clone Repository ────────────────────────────────────────────────────────
 clone_repository() {
   separator
-  echo -e "${BOLD}Cloning Repository${NC}"
+  echo -e "${BOLD}Step 2/8: Cloning Repository${NC}"
   separator
 
   REPO_URL="https://github.com/admin6501/ddns-khalilv2.git"
 
-  if [[ -d "$INSTALL_DIR" ]]; then
-    warn "Directory $INSTALL_DIR already exists."
-    read -rp "$(echo -e "${CYAN}[?]${NC} Remove and re-clone? [Y/n]: ")" RECLONE
-    RECLONE="${RECLONE:-Y}"
-    if [[ "$RECLONE" =~ ^[Yy]$ ]]; then
-      rm -rf "$INSTALL_DIR"
-    else
-      info "Using existing directory."
-      return
-    fi
+  if [[ -d "$INSTALL_DIR/.git" ]]; then
+    warn "Repository already exists at $INSTALL_DIR"
+    clean_read RECLONE "Pull latest changes instead? [Y/n]: " "Y"
+    case "$RECLONE" in
+      [Yy]|[Yy][Ee][Ss])
+        info "Pulling latest changes..."
+        cd "$INSTALL_DIR"
+        git pull origin main 2>/dev/null || git pull 2>/dev/null || warn "Git pull failed"
+        success "Repository updated"
+        ;;
+      *)
+        clean_read RMDIR "Remove and re-clone? [Y/n]: " "Y"
+        case "$RMDIR" in
+          [Yy]|[Yy][Ee][Ss])
+            rm -rf "$INSTALL_DIR"
+            ;;
+          *)
+            info "Using existing directory."
+            return 0
+            ;;
+        esac
+        ;;
+    esac
   fi
 
-  info "Cloning from $REPO_URL ..."
-  git clone "$REPO_URL" "$INSTALL_DIR"
-  success "Repository cloned to $INSTALL_DIR"
+  if [[ ! -d "$INSTALL_DIR" ]]; then
+    info "Cloning from $REPO_URL ..."
+    git clone "$REPO_URL" "$INSTALL_DIR" || fatal "Failed to clone repository. Check URL and network."
+    success "Repository cloned to $INSTALL_DIR"
+  fi
 }
 
 # ─── Setup Backend ───────────────────────────────────────────────────────────
 setup_backend() {
   separator
-  echo -e "${BOLD}Setting Up Backend${NC}"
+  echo -e "${BOLD}Step 3/8: Setting Up Backend${NC}"
   separator
 
   cd "$INSTALL_DIR/backend"
@@ -280,9 +350,9 @@ setup_backend() {
   # Create .env
   info "Creating backend/.env ..."
   cat > .env << ENVEOF
-MONGO_URL="${MONGO_URL}"
-DB_NAME="${DB_NAME}"
-CORS_ORIGINS="https://${DOMAIN}"
+MONGO_URL=${MONGO_URL}
+DB_NAME=${DB_NAME}
+CORS_ORIGINS=https://${DOMAIN}
 CLOUDFLARE_API_TOKEN=${CF_API_TOKEN}
 CLOUDFLARE_ZONE_ID=${CF_ZONE_ID}
 JWT_SECRET=${JWT_SECRET}
@@ -294,13 +364,16 @@ ENVEOF
 
   # Create virtual environment
   info "Creating Python virtual environment..."
-  python3 -m venv venv
+  python3 -m venv venv || fatal "Failed to create Python venv"
   source venv/bin/activate
 
   # Install dependencies
   info "Installing Python dependencies..."
-  pip install --upgrade pip -q
-  pip install -r requirements.txt -q
+  pip install --upgrade pip -q 2>/dev/null
+  pip install -r requirements.txt -q 2>/dev/null || {
+    warn "Some pip packages failed, trying individually..."
+    pip install fastapi uvicorn motor pymongo python-dotenv bcrypt pyjwt httpx pydantic[email] -q 2>/dev/null
+  }
   success "Backend dependencies installed"
 
   deactivate
@@ -309,7 +382,7 @@ ENVEOF
 # ─── Setup Frontend ──────────────────────────────────────────────────────────
 setup_frontend() {
   separator
-  echo -e "${BOLD}Setting Up Frontend${NC}"
+  echo -e "${BOLD}Step 4/8: Setting Up Frontend${NC}"
   separator
 
   cd "$INSTALL_DIR/frontend"
@@ -323,19 +396,19 @@ ENVEOF
 
   # Install dependencies
   info "Installing frontend dependencies (this may take a while)..."
-  yarn install --silent 2>/dev/null
+  yarn install 2>/dev/null || yarn install || fatal "Failed to install frontend dependencies"
   success "Frontend dependencies installed"
 
   # Build for production
   info "Building frontend for production..."
-  yarn build
+  yarn build 2>/dev/null || yarn build || fatal "Frontend build failed"
   success "Frontend built successfully"
 }
 
 # ─── Create Systemd Services ────────────────────────────────────────────────
 create_services() {
   separator
-  echo -e "${BOLD}Creating Systemd Services${NC}"
+  echo -e "${BOLD}Step 5/8: Creating Systemd Services${NC}"
   separator
 
   # Backend service
@@ -362,9 +435,9 @@ SVCEOF
 
   # Enable and start
   systemctl daemon-reload
-  systemctl enable ddns-backend
-  systemctl start ddns-backend
-  sleep 2
+  systemctl enable ddns-backend 2>/dev/null
+  systemctl restart ddns-backend
+  sleep 3
 
   if systemctl is-active --quiet ddns-backend; then
     success "Backend service is running"
@@ -376,33 +449,34 @@ SVCEOF
 # ─── Configure Nginx (HTTP first) ───────────────────────────────────────────
 configure_nginx() {
   separator
-  echo -e "${BOLD}Configuring Nginx${NC}"
+  echo -e "${BOLD}Step 6/8: Configuring Nginx${NC}"
   separator
 
   # Remove default site if exists
-  rm -f /etc/nginx/sites-enabled/default
+  rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
 
-  info "Creating Nginx config for $DOMAIN (HTTP)..."
-  cat > /etc/nginx/sites-available/ddns-khalilv2 << 'NGXEOF'
+  info "Creating Nginx config for $DOMAIN ..."
+
+  cat > "/etc/nginx/sites-available/ddns-khalilv2" << NGXEOF
 server {
     listen 80;
     listen [::]:80;
-    server_name DOMAIN_PLACEHOLDER;
+    server_name ${DOMAIN};
 
     # Frontend (React static build)
-    root INSTALL_DIR_PLACEHOLDER/frontend/build;
+    root ${INSTALL_DIR}/frontend/build;
     index index.html;
 
     # Backend API proxy
     location /api/ {
         proxy_pass http://127.0.0.1:8001;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 300;
         proxy_connect_timeout 300;
         proxy_send_timeout 300;
@@ -410,7 +484,7 @@ server {
 
     # React SPA fallback
     location / {
-        try_files $uri $uri/ /index.html;
+        try_files \$uri \$uri/ /index.html;
     }
 
     # Security headers
@@ -427,105 +501,109 @@ server {
 }
 NGXEOF
 
-  # Replace placeholders
-  sed -i "s|DOMAIN_PLACEHOLDER|${DOMAIN}|g" /etc/nginx/sites-available/ddns-khalilv2
-  sed -i "s|INSTALL_DIR_PLACEHOLDER|${INSTALL_DIR}|g" /etc/nginx/sites-available/ddns-khalilv2
-
   # Enable site
   ln -sf /etc/nginx/sites-available/ddns-khalilv2 /etc/nginx/sites-enabled/
 
   # Test config
-  if nginx -t 2>/dev/null; then
+  if nginx -t 2>&1; then
     success "Nginx config is valid"
     systemctl reload nginx
     success "Nginx reloaded"
   else
-    fatal "Nginx config test failed. Check: nginx -t"
-  fi
-}
-
-# ─── Obtain SSL Certificate ─────────────────────────────────────────────────
-obtain_ssl() {
-  separator
-  echo -e "${BOLD}Obtaining SSL Certificate${NC}"
-  separator
-
-  info "Requesting SSL certificate from Let's Encrypt..."
-  info "Make sure your domain $DOMAIN points to this server's IP address!"
-  echo ""
-
-  read -rp "$(echo -e "${CYAN}[?]${NC} Is $DOMAIN already pointing to this server? [Y/n]: ")" DNS_READY
-  DNS_READY="${DNS_READY:-Y}"
-
-  if [[ ! "$DNS_READY" =~ ^[Yy]$ ]]; then
-    warn "Please configure your DNS first, then run:"
-    echo ""
-    echo "  sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos -m $SSL_EMAIL"
-    echo ""
-    warn "Skipping SSL for now. Site will run on HTTP only."
-    return
-  fi
-
-  certbot --nginx \
-    -d "$DOMAIN" \
-    --non-interactive \
-    --agree-tos \
-    -m "$SSL_EMAIL" \
-    --redirect
-
-  if [[ $? -eq 0 ]]; then
-    success "SSL certificate obtained and configured!"
-    success "Auto-renewal is enabled via certbot timer."
-
-    # Update backend CORS to https
-    sed -i "s|CORS_ORIGINS=.*|CORS_ORIGINS=https://${DOMAIN}|" "$INSTALL_DIR/backend/.env"
-    systemctl restart ddns-backend
-    success "Backend restarted with HTTPS CORS"
-  else
-    warn "SSL certificate failed. You can retry manually:"
-    echo "  sudo certbot --nginx -d $DOMAIN"
+    error "Nginx config test failed!"
+    nginx -t
+    fatal "Fix Nginx config and re-run."
   fi
 }
 
 # ─── Setup Firewall ─────────────────────────────────────────────────────────
 setup_firewall() {
   separator
-  echo -e "${BOLD}Configuring Firewall${NC}"
+  echo -e "${BOLD}Step 7/8: Configuring Firewall${NC}"
   separator
 
   if command -v ufw &>/dev/null; then
     info "Configuring UFW..."
-    ufw allow 22/tcp   >/dev/null 2>&1 || true
-    ufw allow 80/tcp   >/dev/null 2>&1 || true
-    ufw allow 443/tcp  >/dev/null 2>&1 || true
-    ufw --force enable  >/dev/null 2>&1 || true
+    ufw allow 22/tcp   2>/dev/null || true
+    ufw allow 80/tcp   2>/dev/null || true
+    ufw allow 443/tcp  2>/dev/null || true
+    echo "y" | ufw enable 2>/dev/null || true
     success "UFW configured (22, 80, 443 open)"
   else
-    info "UFW not found. Skipping firewall setup."
-    info "Make sure ports 80 and 443 are open."
+    info "UFW not found. Make sure ports 80 and 443 are open."
   fi
+}
+
+# ─── Obtain SSL Certificate ─────────────────────────────────────────────────
+obtain_ssl() {
+  separator
+  echo -e "${BOLD}Step 8/8: Obtaining SSL Certificate${NC}"
+  separator
+
+  info "Requesting SSL certificate from Let's Encrypt..."
+  echo ""
+  warn "Make sure your domain ${DOMAIN} points to this server's IP!"
+  echo ""
+
+  clean_read DNS_READY "Is ${DOMAIN} already pointing to this server? [Y/n]: " "Y"
+
+  case "$DNS_READY" in
+    [Yy]|[Yy][Ee][Ss])
+      info "Requesting certificate..."
+      ;;
+    *)
+      warn "Skipping SSL. After setting up DNS, run manually:"
+      echo ""
+      echo -e "  ${CYAN}sudo certbot --nginx -d ${DOMAIN} --non-interactive --agree-tos -m ${SSL_EMAIL}${NC}"
+      echo ""
+      return 0
+      ;;
+  esac
+
+  certbot --nginx \
+    -d "$DOMAIN" \
+    --non-interactive \
+    --agree-tos \
+    -m "$SSL_EMAIL" \
+    --redirect 2>&1 || {
+    warn "SSL certificate request failed."
+    warn "This usually means the domain doesn't point to this server yet."
+    echo ""
+    echo -e "  Fix DNS, then run:"
+    echo -e "  ${CYAN}sudo certbot --nginx -d ${DOMAIN} --non-interactive --agree-tos -m ${SSL_EMAIL}${NC}"
+    echo ""
+    return 0
+  }
+
+  success "SSL certificate obtained and configured!"
+  success "Auto-renewal is enabled via certbot timer."
+
+  # Update backend CORS to https
+  sed -i "s|CORS_ORIGINS=.*|CORS_ORIGINS=https://${DOMAIN}|" "$INSTALL_DIR/backend/.env"
+  systemctl restart ddns-backend
+  success "Backend restarted with HTTPS CORS"
 }
 
 # ─── Create Management Script ───────────────────────────────────────────────
 create_management_script() {
-  separator
-  echo -e "${BOLD}Creating Management Commands${NC}"
-  separator
+  info "Creating management command: ddns-ctl"
 
   cat > /usr/local/bin/ddns-ctl << 'CTLEOF'
 #!/usr/bin/env bash
-set -euo pipefail
-
 RED='\033[0;31m'; GREEN='\033[0;32m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+
+# Find install dir from service file
+INSTALL_DIR=$(grep "WorkingDirectory" /etc/systemd/system/ddns-backend.service 2>/dev/null | head -1 | cut -d= -f2 | sed 's|/backend||')
+INSTALL_DIR="${INSTALL_DIR:-/opt/ddns-khalilv2}"
 
 case "${1:-help}" in
   start)
     echo -e "${CYAN}Starting services...${NC}"
-    sudo systemctl start ddns-backend nginx mongod
+    sudo systemctl start mongod ddns-backend nginx
     echo -e "${GREEN}All services started.${NC}"
     ;;
   stop)
-    echo -e "${CYAN}Stopping services...${NC}"
+    echo -e "${CYAN}Stopping backend...${NC}"
     sudo systemctl stop ddns-backend
     echo -e "${GREEN}Backend stopped.${NC}"
     ;;
@@ -536,9 +614,9 @@ case "${1:-help}" in
     ;;
   status)
     echo -e "${BOLD}Service Status:${NC}"
-    echo -n "  MongoDB:  "; systemctl is-active mongod  2>/dev/null || echo "inactive"
-    echo -n "  Backend:  "; systemctl is-active ddns-backend 2>/dev/null || echo "inactive"
-    echo -n "  Nginx:    "; systemctl is-active nginx 2>/dev/null || echo "inactive"
+    printf "  %-12s %s\n" "MongoDB:" "$(systemctl is-active mongod 2>/dev/null || echo 'inactive')"
+    printf "  %-12s %s\n" "Backend:" "$(systemctl is-active ddns-backend 2>/dev/null || echo 'inactive')"
+    printf "  %-12s %s\n" "Nginx:" "$(systemctl is-active nginx 2>/dev/null || echo 'inactive')"
     ;;
   logs)
     echo -e "${CYAN}Backend logs (Ctrl+C to exit):${NC}"
@@ -546,16 +624,11 @@ case "${1:-help}" in
     ;;
   update)
     echo -e "${CYAN}Updating from GitHub...${NC}"
-    INSTALL_DIR=$(systemctl show ddns-backend -p WorkingDirectory --value 2>/dev/null | sed 's|/backend||')
-    if [[ -z "$INSTALL_DIR" ]]; then
-      echo -e "${RED}Cannot detect install directory.${NC}"
-      exit 1
-    fi
-    cd "$INSTALL_DIR"
-    git pull origin main
+    cd "$INSTALL_DIR" || exit 1
+    git pull origin main || git pull
     echo -e "${CYAN}Rebuilding frontend...${NC}"
-    cd frontend && yarn install --silent 2>/dev/null && yarn build
-    echo -e "${CYAN}Updating backend dependencies...${NC}"
+    cd frontend && yarn install 2>/dev/null && yarn build
+    echo -e "${CYAN}Updating backend...${NC}"
     cd ../backend && source venv/bin/activate && pip install -r requirements.txt -q && deactivate
     sudo systemctl restart ddns-backend nginx
     echo -e "${GREEN}Update complete!${NC}"
@@ -577,7 +650,7 @@ case "${1:-help}" in
     echo "    restart     Restart all services"
     echo "    status      Show service status"
     echo "    logs        Follow backend logs"
-    echo "    update      Pull latest code & rebuild"
+    echo "    update      Pull latest & rebuild"
     echo "    ssl-renew   Renew SSL certificate"
     ;;
 esac
@@ -608,9 +681,9 @@ show_summary() {
   echo -e "    ddns-ctl ssl-renew   Renew SSL certificate"
   echo ""
   echo -e "  ${BOLD}Services:${NC}"
-  echo -e "    Backend:   systemctl [start|stop|restart] ddns-backend"
-  echo -e "    Nginx:     systemctl [start|stop|restart] nginx"
-  echo -e "    MongoDB:   systemctl [start|stop|restart] mongod"
+  echo -e "    systemctl [start|stop|restart] ddns-backend"
+  echo -e "    systemctl [start|stop|restart] nginx"
+  echo -e "    systemctl [start|stop|restart] mongod"
   echo ""
   echo -e "${GREEN}═══════════════════════════════════════════════════════════════${NC}"
   echo ""
@@ -621,6 +694,11 @@ main() {
   show_banner
   detect_os
   collect_variables
+
+  echo ""
+  info "Installation started. This will take a few minutes..."
+  echo ""
+
   install_prerequisites
   clone_repository
   setup_backend
