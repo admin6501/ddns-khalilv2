@@ -253,6 +253,239 @@ class DNSAPITester:
             response, error
         )
 
+    def test_admin_login(self):
+        """Test admin login with correct credentials"""
+        admin_data = {
+            "email": "admin@khalilv2.com",
+            "password": "admin123456"
+        }
+        
+        success, response, error = self.make_request(
+            'POST', 'auth/login', 
+            admin_data, 
+            expected_status=200
+        )
+        
+        if success and response and 'token' in response:
+            self.admin_token = response['token']
+            self.admin_user = response.get('user', {})
+            
+        return self.log_result(
+            "Admin Login", 
+            success and 'token' in (response or {}) and 
+            response.get('user', {}).get('role') == 'admin', 
+            response, error
+        )
+
+    def test_admin_list_users(self):
+        """Test admin can list all users"""
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        success, response, error = self.make_request(
+            'GET', 'admin/users',
+            expected_status=200
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin List Users", 
+            success and response and 'users' in response, 
+            response, error
+        )
+
+    def test_admin_list_all_records(self):
+        """Test admin can list all DNS records"""
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        success, response, error = self.make_request(
+            'GET', 'admin/records',
+            expected_status=200
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin List All Records", 
+            success and response and 'records' in response, 
+            response, error
+        )
+
+    def test_admin_create_record_for_user(self):
+        """Test admin can create record for any user"""
+        if not self.user_id:
+            return self.log_result(
+                "Admin Create Record for User", 
+                False, None, "No user_id available"
+            )
+            
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        admin_record = {
+            "user_id": self.user_id,
+            "name": f"admin-test-{int(datetime.now().timestamp())}",
+            "record_type": "A",
+            "content": "10.0.0.1",
+            "ttl": 1,
+            "proxied": False
+        }
+        
+        success, response, error = self.make_request(
+            'POST', 'admin/dns/records', 
+            admin_record, 
+            expected_status=201
+        )
+        
+        if success and response and 'id' in response:
+            self.admin_created_record_id = response['id']
+            
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Create Record for User", 
+            success and 'id' in (response or {}), 
+            response, error
+        )
+
+    def test_admin_delete_record(self):
+        """Test admin can delete any record"""
+        if not hasattr(self, 'admin_created_record_id'):
+            return self.log_result(
+                "Admin Delete Record", 
+                False, None, "No admin_created_record_id available"
+            )
+            
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        success, response, error = self.make_request(
+            'DELETE', f'admin/dns/records/{self.admin_created_record_id}',
+            expected_status=200
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Delete Record", 
+            success, 
+            response, error
+        )
+
+    def test_admin_update_user_plan(self):
+        """Test admin can update user plan"""
+        if not self.user_id:
+            return self.log_result(
+                "Admin Update User Plan", 
+                False, None, "No user_id available"
+            )
+            
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        plan_update = {"plan": "pro"}
+        
+        success, response, error = self.make_request(
+            'PUT', f'admin/users/{self.user_id}/plan', 
+            plan_update, 
+            expected_status=200
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Update User Plan", 
+            success and response, 
+            response, error
+        )
+
+    def test_admin_get_settings(self):
+        """Test admin can get settings"""
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        success, response, error = self.make_request(
+            'GET', 'admin/settings',
+            expected_status=200
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Get Settings", 
+            success and response, 
+            response, error
+        )
+
+    def test_admin_update_settings(self):
+        """Test admin can update settings"""
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        settings_update = {
+            "telegram_id": "testadmin",
+            "telegram_url": "https://t.me/testadmin",
+            "contact_message_en": "Contact us on Telegram for pricing",
+            "contact_message_fa": "برای استعلام قیمت در تلگرام تماس بگیرید"
+        }
+        
+        success, response, error = self.make_request(
+            'PUT', 'admin/settings', 
+            settings_update, 
+            expected_status=200
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Update Settings", 
+            success and response, 
+            response, error
+        )
+
+    def test_public_contact_api(self):
+        """Test public contact info API"""
+        success, response, error = self.make_request(
+            'GET', 'settings/contact',
+            expected_status=200
+        )
+        
+        return self.log_result(
+            "Public Contact API", 
+            success and response, 
+            response, error
+        )
+
+    def test_non_admin_access_denied(self):
+        """Test non-admin user cannot access admin endpoints"""
+        # Use regular user token (not admin)
+        success, response, error = self.make_request(
+            'GET', 'admin/users',
+            expected_status=403  # Should be forbidden
+        )
+        
+        return self.log_result(
+            "Non-Admin Access Denied", 
+            success,  # Success means we got 403 as expected
+            response, error
+        )
+
     def cleanup_records(self):
         """Clean up any created records"""
         print("\n🧹 Cleaning up test records...")
@@ -263,26 +496,48 @@ class DNSAPITester:
                 pass
 
     def run_all_tests(self):
-        """Run all API tests"""
-        print("🚀 Starting DNS API Tests")
+        """Run all API tests including admin functionality"""
+        print("🚀 Starting DNS API Tests (with Admin Panel)")
         print(f"Backend URL: {self.base_url}")
         print("=" * 50)
         
-        # 1. Test user registration
+        # Initialize admin token
+        self.admin_token = None
+        self.admin_user = None
+        
+        # 1. Test admin login first
+        if not self.test_admin_login():
+            print("❌ Admin login failed, cannot continue with admin tests")
+            return False
+            
+        # 2. Test user registration (for regular user tests)
         if not self.test_user_registration():
             print("❌ Registration failed, cannot continue")
             return False
             
-        # 2. Test getting current user
+        # 3. Test getting current user
         self.test_get_current_user()
         
-        # 3. Test plans endpoint
+        # 4. Test plans endpoint
         self.test_get_plans()
         
-        # 4. Test listing empty records
+        # 5. Test admin endpoints
+        self.test_admin_list_users()
+        self.test_admin_list_all_records()
+        self.test_admin_create_record_for_user()
+        self.test_admin_delete_record()
+        self.test_admin_update_user_plan()
+        self.test_admin_get_settings()
+        self.test_admin_update_settings()
+        self.test_public_contact_api()
+        
+        # 6. Test access control
+        self.test_non_admin_access_denied()
+        
+        # 7. Test regular DNS record operations
         self.test_list_dns_records_empty()
         
-        # 5. Create first DNS record (A record)
+        # 8. Create first DNS record (A record)
         record1 = {
             "name": f"test1-{int(datetime.now().timestamp())}",
             "record_type": "A",
@@ -291,7 +546,7 @@ class DNSAPITester:
         }
         self.test_create_dns_record(record1)
         
-        # 6. Create second DNS record (CNAME record)
+        # 9. Create second DNS record (CNAME record)
         record2 = {
             "name": f"test2-{int(datetime.now().timestamp())}",
             "record_type": "CNAME", 
@@ -300,17 +555,17 @@ class DNSAPITester:
         }
         self.test_create_dns_record(record2)
         
-        # 7. List records with data
+        # 10. List records with data
         self.test_list_dns_records_with_data()
         
-        # 8. Update first record
+        # 11. Update first record
         if self.created_records:
             self.test_update_dns_record(self.created_records[0])
             
-        # 9. Test record limit enforcement
+        # 12. Test record limit enforcement
         self.test_record_limit_enforcement()
         
-        # 10. Clean up
+        # 13. Clean up
         self.cleanup_records()
         
         # Summary
