@@ -571,79 +571,88 @@ async def get_contact_info():
 
 @api_router.get("/plans")
 async def get_plans():
-    return {
-        "plans": [
-            {
-                "id": "free",
-                "name": "Free",
-                "name_fa": "رایگان",
-                "price": "$0",
-                "price_fa": "رایگان",
-                "record_limit": 2,
-                "features": [
-                    "2 DNS Records",
-                    "A, AAAA, CNAME Support",
-                    "Basic Dashboard",
-                    "Community Support"
-                ],
-                "features_fa": [
-                    "۲ رکورد DNS",
-                    "پشتیبانی A، AAAA، CNAME",
-                    "داشبورد پایه",
-                    "پشتیبانی انجمن"
-                ],
-                "popular": False
-            },
-            {
-                "id": "pro",
-                "name": "Pro",
-                "name_fa": "حرفه‌ای",
-                "price": "$5/mo",
-                "price_fa": "۵ دلار/ماه",
-                "record_limit": 50,
-                "features": [
-                    "50 DNS Records",
-                    "A, AAAA, CNAME Support",
-                    "Advanced Dashboard",
-                    "Priority Support",
-                    "API Access"
-                ],
-                "features_fa": [
-                    "۵۰ رکورد DNS",
-                    "پشتیبانی A، AAAA، CNAME",
-                    "داشبورد پیشرفته",
-                    "پشتیبانی اولویت‌دار",
-                    "دسترسی API"
-                ],
-                "popular": True
-            },
-            {
-                "id": "enterprise",
-                "name": "Enterprise",
-                "name_fa": "سازمانی",
-                "price": "$20/mo",
-                "price_fa": "۲۰ دلار/ماه",
-                "record_limit": 500,
-                "features": [
-                    "500 DNS Records",
-                    "All Record Types",
-                    "Premium Dashboard",
-                    "24/7 Support",
-                    "API Access",
-                    "Custom Domain"
-                ],
-                "features_fa": [
-                    "۵۰۰ رکورد DNS",
-                    "تمام انواع رکورد",
-                    "داشبورد ویژه",
-                    "پشتیبانی ۲۴/۷",
-                    "دسترسی API",
-                    "دامنه اختصاصی"
-                ],
-                "popular": False
-            }
-        ]
+    plans = await db.plans.find({}, {"_id": 0}).sort("sort_order", 1).to_list(50)
+    if not plans:
+        # Fallback to defaults if DB empty
+        plans = DEFAULT_PLANS
+    return {"plans": plans}
+
+# Admin plan CRUD
+@api_router.get("/admin/plans")
+async def admin_list_plans(admin: dict = Depends(get_admin_user)):
+    plans = await db.plans.find({}, {"_id": 0}).sort("sort_order", 1).to_list(50)
+    return {"plans": plans, "count": len(plans)}
+
+@api_router.post("/admin/plans", status_code=201)
+async def admin_create_plan(plan_data: PlanCreate, admin: dict = Depends(get_admin_user)):
+    existing = await db.plans.find_one({"plan_id": plan_data.plan_id}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Plan '{plan_data.plan_id}' already exists")
+    
+    plan_doc = plan_data.model_dump()
+    await db.plans.insert_one(plan_doc)
+    # Update PLAN_LIMITS cache
+    PLAN_LIMITS[plan_data.plan_id] = plan_data.record_limit
+    return {k: v for k, v in plan_doc.items() if k != "_id"}
+
+@api_router.put("/admin/plans/{plan_id}")
+async def admin_update_plan_details(plan_id: str, plan_data: PlanEdit, admin: dict = Depends(get_admin_user)):
+    existing = await db.plans.find_one({"plan_id": plan_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    
+    update_fields = {k: v for k, v in plan_data.model_dump().items() if v is not None}
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    await db.plans.update_one({"plan_id": plan_id}, {"$set": update_fields})
+    
+    # Update PLAN_LIMITS cache if record_limit changed
+    if "record_limit" in update_fields:
+        PLAN_LIMITS[plan_id] = update_fields["record_limit"]
+    
+    updated = await db.plans.find_one({"plan_id": plan_id}, {"_id": 0})
+    return updated
+
+@api_router.delete("/admin/plans/{plan_id}")
+async def admin_delete_plan(plan_id: str, admin: dict = Depends(get_admin_user)):
+    existing = await db.plans.find_one({"plan_id": plan_id}, {"_id": 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    
+    # Check if any users are on this plan
+    users_on_plan = await db.users.count_documents({"plan": plan_id})
+    if users_on_plan > 0:
+        raise HTTPException(status_code=400, detail=f"Cannot delete plan: {users_on_plan} users are on this plan")
+    
+    await db.plans.delete_one({"plan_id": plan_id})
+    PLAN_LIMITS.pop(plan_id, None)
+    return {"message": f"Plan '{plan_id}' deleted"}
+
+# Default plans for seeding
+DEFAULT_PLANS = [
+    {
+        "plan_id": "free", "name": "Free", "name_fa": "رایگان",
+        "price": "$0", "price_fa": "رایگان", "record_limit": 2,
+        "features": ["2 DNS Records", "A, AAAA, CNAME Support", "Basic Dashboard", "Community Support"],
+        "features_fa": ["۲ رکورد DNS", "پشتیبانی A، AAAA، CNAME", "داشبورد پایه", "پشتیبانی انجمن"],
+        "popular": False, "sort_order": 0
+    },
+    {
+        "plan_id": "pro", "name": "Pro", "name_fa": "حرفه‌ای",
+        "price": "$5/mo", "price_fa": "۵ دلار/ماه", "record_limit": 50,
+        "features": ["50 DNS Records", "A, AAAA, CNAME Support", "Advanced Dashboard", "Priority Support", "API Access"],
+        "features_fa": ["۵۰ رکورد DNS", "پشتیبانی A، AAAA، CNAME", "داشبورد پیشرفته", "پشتیبانی اولویت‌دار", "دسترسی API"],
+        "popular": True, "sort_order": 1
+    },
+    {
+        "plan_id": "enterprise", "name": "Enterprise", "name_fa": "سازمانی",
+        "price": "$20/mo", "price_fa": "۲۰ دلار/ماه", "record_limit": 500,
+        "features": ["500 DNS Records", "All Record Types", "Premium Dashboard", "24/7 Support", "API Access", "Custom Domain"],
+        "features_fa": ["۵۰۰ رکورد DNS", "تمام انواع رکورد", "داشبورد ویژه", "پشتیبانی ۲۴/۷", "دسترسی API", "دامنه اختصاصی"],
+        "popular": False, "sort_order": 2
     }
+]
 
 # Include router
 app.include_router(api_router)
