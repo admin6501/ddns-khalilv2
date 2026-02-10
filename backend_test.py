@@ -459,6 +459,200 @@ class DNSAPITester:
             response, error
         )
 
+    def test_admin_change_user_password(self):
+        """Test admin can change any user's password"""
+        if not self.user_id:
+            return self.log_result(
+                "Admin Change User Password", 
+                False, None, "No user_id available"
+            )
+            
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        password_update = {"new_password": "NewTestPass123!"}
+        
+        success, response, error = self.make_request(
+            'PUT', f'admin/users/{self.user_id}/password', 
+            password_update, 
+            expected_status=200
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        # Store new password for later login test
+        if success:
+            self.test_data["password"] = password_update["new_password"]
+        
+        return self.log_result(
+            "Admin Change User Password", 
+            success and response, 
+            response, error
+        )
+
+    def test_user_login_after_password_change(self):
+        """Test user can login with new password after admin change"""
+        login_data = {
+            "email": self.test_data["email"],
+            "password": self.test_data["password"]  # Now the new password
+        }
+        
+        success, response, error = self.make_request(
+            'POST', 'auth/login', 
+            login_data, 
+            expected_status=200
+        )
+        
+        if success and response and 'token' in response:
+            self.token = response['token']
+            
+        return self.log_result(
+            "User Login After Password Change", 
+            success and 'token' in (response or {}), 
+            response, error
+        )
+
+    def test_admin_list_plans(self):
+        """Test admin can list all plans"""
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        success, response, error = self.make_request(
+            'GET', 'admin/plans',
+            expected_status=200
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin List Plans", 
+            success and response and 'plans' in response, 
+            response, error
+        )
+
+    def test_admin_create_plan(self):
+        """Test admin can create a new plan"""
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        timestamp = int(datetime.now().timestamp())
+        self.test_plan_id = f"testplan_{timestamp}"
+        
+        plan_data = {
+            "plan_id": self.test_plan_id,
+            "name": "Test Plan",
+            "name_fa": "پلن تست",
+            "price": "$15/mo",
+            "price_fa": "۱۵ دلار/ماه",
+            "record_limit": 25,
+            "features": ["25 DNS Records", "Basic Support", "Test Feature"],
+            "features_fa": ["۲۵ رکورد DNS", "پشتیبانی پایه", "امکان تست"],
+            "popular": False,
+            "sort_order": 10
+        }
+        
+        success, response, error = self.make_request(
+            'POST', 'admin/plans', 
+            plan_data, 
+            expected_status=201
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Create Plan", 
+            success and response and 'plan_id' in (response or {}), 
+            response, error
+        )
+
+    def test_admin_update_plan(self):
+        """Test admin can update an existing plan"""
+        if not hasattr(self, 'test_plan_id'):
+            return self.log_result(
+                "Admin Update Plan", 
+                False, None, "No test_plan_id available"
+            )
+            
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        plan_update = {
+            "name": "Updated Test Plan",
+            "price": "$20/mo",
+            "record_limit": 30,
+            "popular": True
+        }
+        
+        success, response, error = self.make_request(
+            'PUT', f'admin/plans/{self.test_plan_id}', 
+            plan_update, 
+            expected_status=200
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Update Plan", 
+            success and response, 
+            response, error
+        )
+
+    def test_admin_delete_plan(self):
+        """Test admin can delete a plan (only if no users on it)"""
+        if not hasattr(self, 'test_plan_id'):
+            return self.log_result(
+                "Admin Delete Plan", 
+                False, None, "No test_plan_id available"
+            )
+            
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        success, response, error = self.make_request(
+            'DELETE', f'admin/plans/{self.test_plan_id}',
+            expected_status=200
+        )
+        
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Delete Plan", 
+            success and response, 
+            response, error
+        )
+
+    def test_public_plans_api(self):
+        """Test public plans API returns plans from DB"""
+        success, response, error = self.make_request(
+            'GET', 'plans',
+            expected_status=200
+        )
+        
+        plans_valid = False
+        if success and response and 'plans' in response:
+            plans = response['plans']
+            # Should have at least 3 default plans (free, pro, enterprise)
+            plans_valid = (
+                len(plans) >= 3 and
+                all('plan_id' in plan and 'name' in plan and 'record_limit' in plan for plan in plans)
+            )
+        
+        return self.log_result(
+            "Public Plans API (from DB)", 
+            success and plans_valid, 
+            response, error
+        )
+
     def test_public_contact_api(self):
         """Test public contact info API"""
         success, response, error = self.make_request(
