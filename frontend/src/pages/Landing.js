@@ -236,6 +236,7 @@ export default function Landing() {
                   onClick={plan.action}
                   data-testid={`pricing-cta-${i}`}
                 >
+                  {plan.isTelegram && <Send className="w-4 h-4 me-2" />}
                   {plan.cta}
                 </Button>
               </div>
