@@ -190,8 +190,7 @@ export default function Landing() {
                 <div className="text-center mb-6">
                   <h3 className="text-xl font-semibold mb-4">{plan.name}</h3>
                   <div className="flex items-baseline justify-center gap-1">
-                    <span className="text-4xl font-bold">{plan.currency}{plan.price}</span>
-                    {plan.period && <span className="text-muted-foreground">{plan.period}</span>}
+                    <span className="text-4xl font-bold">{lang === 'fa' ? plan.price_fa : plan.price}</span>
                   </div>
                   <p className="text-sm text-muted-foreground mt-2">
                     {plan.records} {t('pricing_records')}
