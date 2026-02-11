@@ -19,10 +19,10 @@ fi
 INSTALL_DIR=$(grep "WorkingDirectory" /etc/systemd/system/ddns-backend.service 2>/dev/null | head -1 | cut -d= -f2 | sed 's|/backend||')
 INSTALL_DIR="${INSTALL_DIR:-/opt/ddns-khalilv2}"
 DOMAIN=$(grep "server_name" /etc/nginx/sites-available/ddns-khalilv2 2>/dev/null | head -1 | awk '{print $2}' | tr -d ';')
-DOMAIN="${DOMAIN:-khalilv2.com}"
+DOMAIN="${DOMAIN:-example.com}"
 
 echo ""
-echo -e "${BOLD}khalilv2.com Fix Script${NC}"
+echo -e "${BOLD}DNS Management Fix Script${NC}"
 echo -e "  Install Dir: ${CYAN}$INSTALL_DIR${NC}"
 echo -e "  Domain:      ${CYAN}$DOMAIN${NC}"
 echo ""
