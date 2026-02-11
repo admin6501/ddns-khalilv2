@@ -326,6 +326,31 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "created_at": current_user["created_at"]
     }
 
+# ============== REFERRAL ROUTES ==============
+
+@api_router.get("/referral/stats")
+async def get_referral_stats(current_user: dict = Depends(get_current_user)):
+    # Get list of users referred by current user
+    referred_users = await db.users.find(
+        {"referred_by": current_user["id"]},
+        {"_id": 0, "id": 1, "name": 1, "email": 1, "created_at": 1}
+    ).to_list(100)
+    
+    # Get bonus per invite from settings
+    settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
+    bonus_per_invite = (settings or {}).get("referral_bonus_per_invite", 1)
+    
+    return {
+        "referral_code": current_user.get("referral_code", ""),
+        "referral_count": current_user.get("referral_count", 0),
+        "referral_bonus": current_user.get("referral_bonus", 0),
+        "bonus_per_invite": bonus_per_invite,
+        "referred_users": [
+            {"name": u["name"], "date": u["created_at"]}
+            for u in referred_users
+        ]
+    }
+
 # ============== DNS ROUTES ==============
 
 @api_router.get("/dns/records")
