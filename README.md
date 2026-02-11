@@ -142,6 +142,14 @@
 ### نصب یک‌مرحله‌ای
 
 ```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/admin6501/ddns-khalilv2/main/install.sh)
+```
+
+یا:
+
+```bash
+git clone https://github.com/admin6501/ddns-khalilv2.git
+cd ddns-khalilv2
 sudo bash install.sh
 ```
 
