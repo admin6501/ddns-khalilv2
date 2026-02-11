@@ -807,6 +807,7 @@ async def startup():
     await db.dns_records.create_index("user_id")
     await db.dns_records.create_index("id", unique=True)
     await db.plans.create_index("plan_id", unique=True)
+    await db.users.create_index("referral_code", unique=True, sparse=True)
     
     # Seed admin user if not exists
     admin_email = os.environ.get('ADMIN_EMAIL', 'admin@khalilv2.com')
