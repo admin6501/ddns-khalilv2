@@ -1063,6 +1063,9 @@ class DNSAPITester:
             "Registration with Referral Code (Bonus Applied)", 
             success and bonus_applied, 
             {
+                "registration_success": success,
+                "bonus_applied": bonus_applied,
+                "referred_by": self.referred_user.get('referred_by') if hasattr(self, 'referred_user') else None,
                 "initial_bonus": initial_bonus, 
                 "final_bonus": final_response.get('referral_bonus', 0) if final_response else 0,
                 "initial_count": initial_count,
