@@ -390,6 +390,7 @@ setup_frontend() {
 
   cat > .env << EOF
 REACT_APP_BACKEND_URL=https://${DOMAIN}
+REACT_APP_DOMAIN_NAME=${DOMAIN}
 EOF
   success "Frontend .env created"
 
