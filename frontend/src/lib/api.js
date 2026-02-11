@@ -44,6 +44,11 @@ export const dnsAPI = {
   deleteRecord: (id) => api.delete(`/dns/records/${id}`),
 };
 
+// Referral
+export const referralAPI = {
+  getStats: () => api.get('/referral/stats'),
+};
+
 // Plans
 export const plansAPI = {
   getPlans: () => api.get('/plans'),
