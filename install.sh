@@ -257,7 +257,7 @@ do_install() {
 
 collect_variables() {
   echo ""
-  clean_read DOMAIN "Domain name (e.g. khalilv2.com): "
+  clean_read DOMAIN "Domain name (e.g. yourdomain.com): "
   [[ -z "$DOMAIN" ]] && fatal "Domain is required."
 
   clean_read SSL_EMAIL "Email for SSL (Let's Encrypt): "
