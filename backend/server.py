@@ -134,6 +134,10 @@ class SettingsUpdate(BaseModel):
 
 # ============== HELPERS ==============
 
+def generate_referral_code(length=8):
+    chars = string.ascii_lowercase + string.digits
+    return ''.join(random.choices(chars, k=length))
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
