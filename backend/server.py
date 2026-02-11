@@ -688,17 +688,31 @@ async def admin_update_settings(settings_data: SettingsUpdate, admin: dict = Dep
     settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
     return settings
 
-# Public endpoint for contact info
+# Public endpoint for site config (domain, contact info)
+@api_router.get("/config")
+async def get_site_config():
+    settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
+    return {
+        "domain": DOMAIN_NAME,
+        "telegram_id": (settings or {}).get("telegram_id", ""),
+        "telegram_url": (settings or {}).get("telegram_url", ""),
+        "contact_message_en": (settings or {}).get("contact_message_en", ""),
+        "contact_message_fa": (settings or {}).get("contact_message_fa", ""),
+        "referral_bonus_per_invite": (settings or {}).get("referral_bonus_per_invite", 1),
+    }
+
+# Public endpoint for contact info (legacy)
 @api_router.get("/settings/contact")
 async def get_contact_info():
     settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
     if not settings:
-        return {"telegram_id": "", "telegram_url": "", "contact_message_en": "", "contact_message_fa": ""}
+        return {"telegram_id": "", "telegram_url": "", "contact_message_en": "", "contact_message_fa": "", "domain": DOMAIN_NAME}
     return {
         "telegram_id": settings.get("telegram_id", ""),
         "telegram_url": settings.get("telegram_url", ""),
         "contact_message_en": settings.get("contact_message_en", ""),
-        "contact_message_fa": settings.get("contact_message_fa", "")
+        "contact_message_fa": settings.get("contact_message_fa", ""),
+        "domain": DOMAIN_NAME
     }
 
 # ============== PLANS ROUTES ==============
