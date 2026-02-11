@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Globe, Loader2, Gift } from 'lucide-react';
+import { DOMAIN } from '../config/site';
 
 export default function Register() {
   const { t, lang } = useLanguage();

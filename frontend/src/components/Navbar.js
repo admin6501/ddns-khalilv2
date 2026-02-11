@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
 import { Globe, Sun, Moon, Languages, Menu, X, LogOut, LayoutDashboard, User, Crown } from 'lucide-react';
+import { DOMAIN } from '../config/site';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
