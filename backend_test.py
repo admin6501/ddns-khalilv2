@@ -1070,9 +1070,11 @@ class DNSAPITester:
                 "initial_limit": initial_record_limit,
                 "final_limit": final_record_limit,
                 "expected_limit_min": initial_record_limit + 2,
-                "bonus_check": final_response.get('referral_bonus', 0) == (initial_bonus + 2) if final_response else False,
-                "count_check": final_response.get('referral_count', 0) == (initial_count + 1) if final_response else False,
-                "limit_check": final_record_limit >= (initial_record_limit + 2),
+                "bonus_check": bonus_check if 'bonus_check' in locals() else False,
+                "count_check": count_check if 'count_check' in locals() else False, 
+                "limit_check": limit_check if 'limit_check' in locals() else False,
+                "final_success": final_success,
+                "me_final_success": me_final_success,
                 "referred_user_id": self.referred_user.get('id', '')
             }, error
         )
