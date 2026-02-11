@@ -282,6 +282,73 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Referral Card */}
+        <div className="rounded-xl border border-border bg-card p-6 mb-8" data-testid="referral-card">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Gift className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold">{t('referral_title')}</h3>
+              <p className="text-sm text-muted-foreground">{t('referral_subtitle')}</p>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Referral link */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">{t('referral_link')}</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={referralLink}
+                  readOnly
+                  className="font-mono text-xs"
+                  data-testid="referral-link-input"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={copyReferralLink}
+                  className="shrink-0"
+                  data-testid="copy-referral-btn"
+                >
+                  {linkCopied ? <CheckIcon className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                </Button>
+              </div>
+            </div>
+            
+            {/* Stats */}
+            <div className="flex items-center gap-6">
+              <div className="text-center" data-testid="referral-count-stat">
+                <p className="text-2xl font-bold text-primary">{referralStats?.referral_count || user?.referral_count || 0}</p>
+                <p className="text-xs text-muted-foreground">{t('referral_count')}</p>
+              </div>
+              <div className="text-center" data-testid="referral-bonus-stat">
+                <p className="text-2xl font-bold text-green-500">{referralStats?.referral_bonus || user?.referral_bonus || 0}</p>
+                <p className="text-xs text-muted-foreground">{t('referral_bonus')}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-muted-foreground">{referralStats?.bonus_per_invite || 1}</p>
+                <p className="text-xs text-muted-foreground">{t('referral_bonus_per')}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Invited friends list */}
+          {referralStats?.referred_users?.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                <Users className="w-4 h-4" />{t('referral_invited_list')}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {referralStats.referred_users.map((u, i) => (
+                  <Badge key={i} variant="secondary" className="text-xs">{u.name}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Records Table */}
         <div className="rounded-xl border border-border bg-card overflow-hidden" data-testid="records-table-wrapper">
           <div className="flex items-center justify-between p-4 border-b border-border">
