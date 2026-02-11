@@ -824,7 +824,7 @@ async def startup():
     await db.users.create_index("referral_code", unique=True, sparse=True)
     
     # Seed admin user if not exists
-    admin_email = os.environ.get('ADMIN_EMAIL', 'admin@khalilv2.com')
+    admin_email = os.environ.get('ADMIN_EMAIL', f'admin@{DOMAIN_NAME}')
     admin_pass = os.environ.get('ADMIN_PASSWORD', 'admin123456')
     existing_admin = await db.users.find_one({"email": admin_email})
     if not existing_admin:
