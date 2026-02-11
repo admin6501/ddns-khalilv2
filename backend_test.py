@@ -1045,16 +1045,16 @@ class DNSAPITester:
         
         # Verify bonus was applied
         bonus_applied = False
-        if final_response:
+        if final_response and me_final_response:
             expected_bonus = initial_bonus + 2  # We set bonus to 2 per invite
             expected_count = initial_count + 1
             expected_limit = initial_record_limit + 2
             
-            bonus_applied = (
-                final_response.get('referral_bonus', 0) == expected_bonus and
-                final_response.get('referral_count', 0) == expected_count and
-                final_record_limit >= initial_record_limit + 2  # Allow for plan upgrades
-            )
+            bonus_check = final_response.get('referral_bonus', 0) == expected_bonus
+            count_check = final_response.get('referral_count', 0) == expected_count  
+            limit_check = final_record_limit >= initial_record_limit + 2
+            
+            bonus_applied = bonus_check and count_check and limit_check
             
         # Restore token
         self.token = current_token
