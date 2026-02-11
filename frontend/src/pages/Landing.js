@@ -5,8 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { contactAPI, plansAPI } from '../lib/api';
 import { Globe, Shield, Zap, Server, LayoutDashboard, ArrowUpRight, Check, ChevronRight, Send } from 'lucide-react';
 import { Button } from '../components/ui/button';
-
-const DOMAIN = "khalilv2.com";
+import { DOMAIN } from '../config/site';
 
 export default function Landing() {
   const { t, lang } = useLanguage();
