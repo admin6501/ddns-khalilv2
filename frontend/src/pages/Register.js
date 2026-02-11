@@ -42,7 +42,7 @@ export default function Register() {
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center gap-2">
             <Globe className="w-8 h-8 text-primary" />
-            <span className={`text-2xl font-bold ${lang === 'en' ? 'font-en-heading' : 'font-fa'}`}>khalilv2.com</span>
+            <span className={`text-2xl font-bold ${lang === 'en' ? 'font-en-heading' : 'font-fa'}`}>{DOMAIN}</span>
           </Link>
         </div>
 
