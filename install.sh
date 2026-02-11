@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #═══════════════════════════════════════════════════════════════════════════════
-#  khalilv2.com DNS Management Platform - Ultimate Installer & Manager
+#  DNS Management Platform - Ultimate Installer & Manager
 #  GitHub: https://github.com/admin6501/ddns-khalilv2
 #  Supports: Ubuntu 20.04/22.04/24.04, Debian 11/12
 #═══════════════════════════════════════════════════════════════════════════════
