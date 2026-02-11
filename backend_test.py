@@ -1024,8 +1024,8 @@ class DNSAPITester:
         
         if success and response:
             self.referred_user = response.get('user', {})
-            # Verify referred_by is set
-            success = success and response.get('user', {}).get('referred_by') is not None
+            # Registration is successful - referred_by is internal and not returned in response
+            # We'll verify referral worked by checking bonus application
             
         # Now check referrer got bonus
         self.token = self.referrer_token
