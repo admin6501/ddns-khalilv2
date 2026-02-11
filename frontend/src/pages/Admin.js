@@ -127,6 +127,7 @@ export default function Admin() {
         telegram_url: res.data.telegram_url || '',
         contact_message_en: res.data.contact_message_en || '',
         contact_message_fa: res.data.contact_message_fa || '',
+        referral_bonus_per_invite: res.data.referral_bonus_per_invite ?? 1,
       });
     } catch { toast.error('Failed to load settings'); }
     finally { setSettingsLoading(false); }
