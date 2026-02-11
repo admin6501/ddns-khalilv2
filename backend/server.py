@@ -848,8 +848,16 @@ async def startup():
             "telegram_id": "",
             "telegram_url": "https://t.me/",
             "contact_message_en": "Contact us on Telegram for pricing",
-            "contact_message_fa": "برای استعلام قیمت در تلگرام تماس بگیرید"
+            "contact_message_fa": "برای استعلام قیمت در تلگرام تماس بگیرید",
+            "referral_bonus_per_invite": 1
         })
+    else:
+        # Ensure referral_bonus_per_invite field exists
+        if "referral_bonus_per_invite" not in (existing_settings or {}):
+            await db.settings.update_one(
+                {"key": "site_settings"},
+                {"$set": {"referral_bonus_per_invite": 1}}
+            )
     
     logger.info("Database indexes created")
 
