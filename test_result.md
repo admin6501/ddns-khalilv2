@@ -101,3 +101,48 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Remove all hardcoded domain name (khalilv2.com) references from frontend source code, backend source code, and install script. Make domain name dynamic so when a user installs the project with their own domain, the domain automatically appears everywhere instead of khalilv2.com."
+
+backend:
+  - task: "Dynamic domain name from DOMAIN_NAME env var"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Backend already used DOMAIN_NAME env var. Updated fallback defaults from khalilv2.com to example.com and admin@{DOMAIN_NAME}."
+
+frontend:
+  - task: "Dynamic domain name via REACT_APP_DOMAIN_NAME env var"
+    implemented: true
+    working: true
+    file: "frontend/src/config/site.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Created config/site.js. Updated Landing.js, Dashboard.js, Admin.js, Login.js, Register.js, Navbar.js, index.html to use dynamic DOMAIN from env var."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 0
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Dynamic domain name via REACT_APP_DOMAIN_NAME env var"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Replaced all hardcoded khalilv2.com references in frontend with dynamic config from REACT_APP_DOMAIN_NAME env var. Created config/site.js as central domain config. Updated install.sh to include REACT_APP_DOMAIN_NAME in frontend .env generation."
