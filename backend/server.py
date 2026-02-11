@@ -221,6 +221,11 @@ async def register(user_data: UserRegister):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
+    # Generate unique referral code
+    ref_code = generate_referral_code()
+    while await db.users.find_one({"referral_code": ref_code}):
+        ref_code = generate_referral_code()
+    
     user_id = str(uuid.uuid4())
     user_doc = {
         "id": user_id,
@@ -231,8 +236,36 @@ async def register(user_data: UserRegister):
         "role": "user",
         "record_count": 0,
         "record_limit": PLAN_LIMITS["free"],
+        "referral_code": ref_code,
+        "referred_by": None,
+        "referral_count": 0,
+        "referral_bonus": 0,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
+    
+    # Process referral
+    if user_data.referral_code:
+        referrer = await db.users.find_one({"referral_code": user_data.referral_code}, {"_id": 0})
+        if referrer:
+            user_doc["referred_by"] = referrer["id"]
+            
+            # Get bonus amount from settings
+            settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
+            bonus = (settings or {}).get("referral_bonus_per_invite", 1)
+            
+            # Give referrer bonus records
+            await db.users.update_one(
+                {"id": referrer["id"]},
+                {
+                    "$inc": {
+                        "record_limit": bonus,
+                        "referral_count": 1,
+                        "referral_bonus": bonus
+                    }
+                }
+            )
+            logger.info(f"Referral: {referrer['email']} gets +{bonus} records from {user_data.email}")
+    
     await db.users.insert_one(user_doc)
     token = create_token(user_id, user_data.email)
     return {
@@ -245,6 +278,9 @@ async def register(user_data: UserRegister):
             "role": "user",
             "record_count": 0,
             "record_limit": PLAN_LIMITS["free"],
+            "referral_code": ref_code,
+            "referral_count": 0,
+            "referral_bonus": 0,
             "created_at": user_doc["created_at"]
         }
     }
