@@ -1065,8 +1065,14 @@ class DNSAPITester:
             {
                 "initial_bonus": initial_bonus, 
                 "final_bonus": final_response.get('referral_bonus', 0) if final_response else 0,
+                "initial_count": initial_count,
+                "final_count": final_response.get('referral_count', 0) if final_response else 0,
                 "initial_limit": initial_record_limit,
                 "final_limit": final_record_limit,
+                "expected_limit_min": initial_record_limit + 2,
+                "bonus_check": final_response.get('referral_bonus', 0) == (initial_bonus + 2) if final_response else False,
+                "count_check": final_response.get('referral_count', 0) == (initial_count + 1) if final_response else False,
+                "limit_check": final_record_limit >= (initial_record_limit + 2),
                 "referred_user_id": self.referred_user.get('id', '')
             }, error
         )
