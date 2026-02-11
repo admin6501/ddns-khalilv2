@@ -28,8 +28,7 @@ import {
   Plus, Save, RefreshCw, Crown, KeyRound, CreditCard, Pencil, Gift
 } from 'lucide-react';
 import { toast } from 'sonner';
-
-const DOMAIN = "khalilv2.com";
+import { DOMAIN } from '../config/site';
 
 export default function Admin() {
   const { t, lang } = useLanguage();
