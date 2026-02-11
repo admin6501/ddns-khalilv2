@@ -130,6 +130,7 @@ class SettingsUpdate(BaseModel):
     telegram_url: Optional[str] = None
     contact_message_en: Optional[str] = None
     contact_message_fa: Optional[str] = None
+    referral_bonus_per_invite: Optional[int] = None
 
 # ============== HELPERS ==============
 
