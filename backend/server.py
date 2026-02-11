@@ -823,10 +823,26 @@ async def startup():
             "role": "admin",
             "record_count": 0,
             "record_limit": PLAN_LIMITS["enterprise"],
+            "referral_code": generate_referral_code(),
+            "referred_by": None,
+            "referral_count": 0,
+            "referral_bonus": 0,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         await db.users.insert_one(admin_doc)
         logger.info(f"Admin user created: {admin_email}")
+    else:
+        # Ensure existing admin has referral_code
+        if not existing_admin.get("referral_code"):
+            await db.users.update_one(
+                {"email": admin_email},
+                {"$set": {
+                    "referral_code": generate_referral_code(),
+                    "referred_by": None,
+                    "referral_count": 0,
+                    "referral_bonus": 0
+                }}
+            )
     
     # Seed default plans if empty
     plans_count = await db.plans.count_documents({})
