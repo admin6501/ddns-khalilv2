@@ -53,6 +53,7 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     name: str = Field(min_length=2)
+    referral_code: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
