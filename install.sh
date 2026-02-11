@@ -147,7 +147,7 @@ show_banner() {
   echo -e "  ███     ▀         ███    ███    ███ ███▌    ▄ ███     ▀  "
   echo -e "  █▀                ███    ████████▀  █████▄▄██ █▀        ${N}"
   echo ""
-  echo -e "  ${B}khalilv2.com${N} ${D}DNS Management Platform${N}"
+  echo -e "  ${B}DNS Management Platform${N} ${D}Installer${N}"
   echo -e "  ${D}github.com/admin6501/ddns-khalilv2${N}"
   echo ""
 }
