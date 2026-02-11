@@ -3,21 +3,19 @@
 <br>
 
 ```
- ▄█   ▄█▄    ▄█    █▄      ▄████████  ▄█        ▄█   ▄█▄ 
- ███ ▄███▀   ███    ███    ███    ███ ███       ███ ▄███▀  
- ███▐██▀     ███    ███    ███    ███ ███       ███▐██▀    
- ███▐██▄     ███▄▄▄▄███▄▄ ███    ███ ███       ███▐██▄    
- ███ ▀███▄   ▀▀▀▀▀▀███▀▀▀ ▀███████████ ███       ███ ▀███▄  
- ███   ▀██▀        ███    ███    ███ ███       ███   ▀██▀ 
- ███     ▀         ███    ███    ███ ███▌    ▄ ███     ▀  
- █▀                ███    ████████▀  █████▄▄██ █▀        
+ ██████╗ ██████╗ ███╗   ██╗███████╗    ██████╗ ███╗   ██╗███████╗
+██╔════╝██╔═══██╗████╗  ██║██╔════╝    ██╔══██╗████╗  ██║██╔════╝
+██║     ██║   ██║██╔██╗ ██║█████╗      ██║  ██║██╔██╗ ██║███████╗
+██║     ██║   ██║██║╚██╗██║██╔══╝      ██║  ██║██║╚██╗██║╚════██║
+╚██████╗╚██████╔╝██║ ╚████║██║         ██████╔╝██║ ╚████║███████║
+ ╚═════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝         ╚═════╝ ╚═╝  ╚═══╝╚══════╝
 ```
 
 <br>
 
-# پلتفرم مدیریت DNS — khalilv2.com
+# پلتفرم مدیریت DNS رایگان
 
-**ساخت رکوردهای DNS رایگان روی دامنه khalilv2.com**
+**ساب‌دامین رایگان برای همه — یک‌بار نصب کن، روی دامنه خودت اجرا کن**
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
@@ -30,7 +28,7 @@
 
 [نصب سریع](#-نصب-سریع) •
 [قابلیت‌ها](#-قابلیت‌ها) •
-[اسکرین‌شات](#-اسکرین‌شات) •
+[پیکربندی](#%EF%B8%8F-پیکربندی) •
 [API](#-مستندات-api) •
 [مشارکت](#-مشارکت)
 
@@ -42,9 +40,11 @@
 
 <br>
 
-## پلتفرمی که هر کسی بتونه ساب‌دامین رایگان داشته باشه
+## 🌐 درباره پروژه
 
-khalilv2.com یک پلتفرم مدیریت DNS هست که به کاربران اجازه میده رکوردهای **A**، **AAAA** و **CNAME** رو به صورت رایگان روی دامنه ایجاد کنن. رکوردها مستقیم از طریق **Cloudflare API** روی DNS واقعی اعمال میشن.
+یک پلتفرم **مدیریت DNS متن‌باز** که با دامنه دلخواه شما کار می‌کنه. کاربران می‌تونن رکوردهای **A**، **AAAA** و **CNAME** رو به صورت رایگان ایجاد کنن. رکوردها مستقیم از طریق **Cloudflare API** روی DNS واقعی اعمال میشن.
+
+> **مثال:** اگه دامنه شما `example.com` باشه، کاربران می‌تونن ساب‌دامین‌هایی مثل `mysite.example.com` بسازن.
 
 <br>
 
@@ -54,10 +54,10 @@ khalilv2.com یک پلتفرم مدیریت DNS هست که به کاربران 
 <tr>
 <td width="50%">
 
-### کاربران
+### 👤 کاربران
 - ثبت‌نام و ورود با ایمیل و رمز عبور
 - ساخت رکوردهای A، AAAA، CNAME
-- ۲ رکورد رایگان برای هر کاربر
+- رکوردهای رایگان برای هر کاربر (قابل تنظیم)
 - ویرایش و حذف رکوردها
 - سیستم دعوت دوستان (Referral)
 - دریافت رکورد اضافی به ازای هر دعوت
@@ -65,7 +65,7 @@ khalilv2.com یک پلتفرم مدیریت DNS هست که به کاربران 
 </td>
 <td width="50%">
 
-### پنل مدیریت
+### 🛡 پنل مدیریت
 - مدیریت کامل کاربران (حذف / تغییر پلن / تغییر رمز)
 - مشاهده و مدیریت تمام رکوردهای DNS
 - مدیریت پلن‌ها (ایجاد / ویرایش / حذف)
@@ -78,8 +78,8 @@ khalilv2.com یک پلتفرم مدیریت DNS هست که به کاربران 
 <tr>
 <td width="50%">
 
-### طراحی
-- دوزبانه: فارسی (راست‌به‌چپ) و انگلیسی
+### 🎨 طراحی
+- **دوزبانه**: فارسی (راست‌به‌چپ) و انگلیسی
 - تم تاریک و روشن
 - طراحی ریسپانسیو
 - رابط کاربری مدرن با Shadcn UI
@@ -87,10 +87,11 @@ khalilv2.com یک پلتفرم مدیریت DNS هست که به کاربران 
 </td>
 <td width="50%">
 
-### فنی
+### ⚙️ فنی
 - احراز هویت JWT
 - اتصال مستقیم به Cloudflare API
 - دیتابیس MongoDB
+- **نام دامنه کاملاً داینامیک** (از env var خوانده میشه)
 - نصب خودکار با اسکریپت Bash
 - SSL رایگان با Let's Encrypt
 
@@ -110,7 +111,7 @@ khalilv2.com یک پلتفرم مدیریت DNS هست که به کاربران 
                                │               │
                     ┌──────────▼──────┐ ┌──────▼──────────────┐
                     │   React SPA     │ │   FastAPI Backend    │
-                    │   Port 3000     │ │   Port 8001          │
+                    │   (Build)       │ │   Port 8001          │
                     │                 │ │                      │
                     │  • Landing Page │ │  • /api/auth/*       │
                     │  • Dashboard    │ │  • /api/dns/*        │
@@ -141,20 +142,23 @@ khalilv2.com یک پلتفرم مدیریت DNS هست که به کاربران 
 ### نصب یک‌مرحله‌ای
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/admin6501/ddns-khalilv2/main/install.sh)
-```
-
-یا:
-
-```bash
-git clone https://github.com/admin6501/ddns-khalilv2.git
-cd ddns-khalilv2
 sudo bash install.sh
 ```
 
-### منوی اسکریپت نصب
+اسکریپت نصب از شما این اطلاعات رو میپرسه:
 
-اسکریپت نصب یک منوی اینتراکتیو داره:
+| سؤال | مثال | توضیحات |
+|------|------|---------|
+| نام دامنه | `yourdomain.com` | دامنه‌ای که می‌خواید ساب‌دامین روش بسازید |
+| ایمیل SSL | `you@email.com` | برای Let's Encrypt |
+| Cloudflare API Token | — | [ساخت توکن](https://dash.cloudflare.com/profile/api-tokens) (دسترسی Edit DNS) |
+| Cloudflare Zone ID | — | از داشبورد Overview دامنه |
+| ایمیل ادمین | `admin@yourdomain.com` | برای ورود به پنل مدیریت |
+| رمز ادمین | — | حداقل ۶ کاراکتر |
+| آدرس MongoDB | `mongodb://localhost:27017` | پیش‌فرض: لوکال |
+| نام دیتابیس | `dns_management` | دلخواه |
+
+### منوی اسکریپت نصب
 
 ```
   1 )  Install          نصب کامل از صفر
@@ -182,20 +186,14 @@ sudo bash install.sh status
 
 ## ⚙️ پیکربندی
 
-### اطلاعات مورد نیاز هنگام نصب
+### نام دامنه داینامیک
 
-اسکریپت نصب این اطلاعات رو ازتون میپرسه:
+نام دامنه **هاردکد نیست** و از متغیرهای محیطی خوانده میشه. وقتی پروژه رو با `install.sh` نصب کنید، دامنه‌ای که وارد می‌کنید به صورت خودکار در تمام بخش‌های سایت نمایش داده میشه:
 
-| متغیر | توضیحات | مثال |
-|--------|---------|------|
-| Domain | نام دامنه شما | `khalilv2.com` |
-| SSL Email | ایمیل برای Let's Encrypt | `you@email.com` |
-| CF API Token | توکن API کلودفلر | [ساخت توکن](https://dash.cloudflare.com/profile/api-tokens) |
-| CF Zone ID | شناسه زون کلودفلر | از داشبورد Overview دامنه |
-| Admin Email | ایمیل ادمین | `admin@khalilv2.com` |
-| Admin Password | رمز عبور ادمین (حداقل ۶ کاراکتر) | — |
-| MongoDB URL | آدرس MongoDB | `mongodb://localhost:27017` |
-| DB Name | نام دیتابیس | `khalilv2_dns` |
+| متغیر | فایل | توضیحات |
+|--------|------|---------|
+| `DOMAIN_NAME` | `backend/.env` | نام دامنه در بک‌اند |
+| `REACT_APP_DOMAIN_NAME` | `frontend/.env` | نام دامنه در فرانت‌اند |
 
 ### فایل‌های محیطی
 
@@ -204,13 +202,13 @@ sudo bash install.sh status
 
 ```env
 MONGO_URL=mongodb://localhost:27017
-DB_NAME=khalilv2_dns
-CORS_ORIGINS=https://khalilv2.com
+DB_NAME=dns_management
+CORS_ORIGINS=https://yourdomain.com
 CLOUDFLARE_API_TOKEN=your_token_here
 CLOUDFLARE_ZONE_ID=your_zone_id_here
 JWT_SECRET=auto_generated_on_install
-DOMAIN_NAME=khalilv2.com
-ADMIN_EMAIL=admin@khalilv2.com
+DOMAIN_NAME=yourdomain.com
+ADMIN_EMAIL=admin@yourdomain.com
 ADMIN_PASSWORD=your_password
 ```
 </details>
@@ -219,7 +217,8 @@ ADMIN_PASSWORD=your_password
 <summary><b>frontend/.env</b></summary>
 
 ```env
-REACT_APP_BACKEND_URL=https://khalilv2.com
+REACT_APP_BACKEND_URL=https://yourdomain.com
+REACT_APP_DOMAIN_NAME=yourdomain.com
 ```
 </details>
 
@@ -252,11 +251,12 @@ REACT_APP_BACKEND_URL=https://khalilv2.com
 |-----|-------|---------|------------|
 | `GET` | `/api/referral/stats` | آمار دعوت‌ها | Bearer Token |
 
-### پلن‌ها و تماس
+### پلن‌ها و تنظیمات عمومی
 
 | متد | مسیر | توضیحات | احراز هویت |
 |-----|-------|---------|------------|
 | `GET` | `/api/plans` | لیست پلن‌ها | — |
+| `GET` | `/api/config` | تنظیمات سایت (دامنه، تماس) | — |
 | `GET` | `/api/settings/contact` | اطلاعات تماس تلگرام | — |
 
 ### پنل ادمین
@@ -300,7 +300,7 @@ REACT_APP_BACKEND_URL=https://khalilv2.com
 </details>
 
 <details>
-<summary><b>تنظیمات</b></summary>
+<summary><b>تنظیمات سایت</b></summary>
 
 | متد | مسیر | توضیحات |
 |-----|-------|---------|
@@ -314,7 +314,6 @@ REACT_APP_BACKEND_URL=https://khalilv2.com
 ## 📁 ساختار پروژه
 
 ```
-ddns-khalilv2/
 ├── install.sh                    # اسکریپت نصب و مدیریت
 ├── fix-server.sh                 # اسکریپت رفع مشکلات سرور
 ├── README.md
@@ -328,10 +327,12 @@ ddns-khalilv2/
     ├── package.json
     ├── tailwind.config.js
     ├── public/
-    │   └── index.html
+    │   └── index.html            # از %REACT_APP_DOMAIN_NAME% استفاده میکنه
     └── src/
         ├── App.js                # مسیریابی اصلی
         ├── index.css             # استایل‌ها و تم‌ها
+        ├── config/
+        │   └── site.js           # ◀ پیکربندی دامنه (داینامیک از env var)
         ├── lib/
         │   ├── api.js            # کلاینت API
         │   └── i18n.js           # ترجمه‌ها (FA/EN)
@@ -378,7 +379,7 @@ ddns-khalilv2/
 ```
 
 - هر کاربر یک **کد دعوت یکتا** داره
-- لینک دعوت: `https://khalilv2.com/register?ref=CODE`
+- لینک دعوت: `https://yourdomain.com/register?ref=CODE`
 - به ازای هر دعوت موفق، **N رکورد اضافی** به دعوت‌کننده داده میشه
 - مقدار N از بخش **تنظیمات پنل ادمین** قابل تغییره
 
@@ -393,6 +394,7 @@ cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+# متغیرهای محیطی .env رو تنظیم کنید
 uvicorn server:app --host 0.0.0.0 --port 8001 --reload
 ```
 
@@ -400,6 +402,7 @@ uvicorn server:app --host 0.0.0.0 --port 8001 --reload
 
 ```bash
 cd frontend
+# متغیرهای محیطی .env رو تنظیم کنید
 yarn install
 yarn start
 ```
@@ -419,7 +422,7 @@ journalctl -u ddns-backend -f
 systemctl status mongod
 
 # بررسی .env
-cat /opt/ddns-khalilv2/backend/.env
+cat /path/to/install/backend/.env
 ```
 </details>
 
@@ -439,12 +442,12 @@ sudo bash fix-server.sh
 
 ۱. مطمئن بشید دامنه به IP سرور اشاره میکنه:
 ```bash
-dig +short khalilv2.com
+dig +short yourdomain.com
 ```
 
 ۲. دستی تست کنید:
 ```bash
-sudo certbot --nginx -d khalilv2.com --non-interactive --agree-tos -m your@email.com
+sudo certbot --nginx -d yourdomain.com --non-interactive --agree-tos -m your@email.com
 ```
 </details>
 
@@ -492,10 +495,6 @@ sudo certbot --nginx -d khalilv2.com --non-interactive --agree-tos -m your@email
 ---
 
 <div align="center">
-
-ساخته شده با عشق توسط **[admin6501](https://github.com/admin6501)**
-
-<br>
 
 اگه این پروژه بهتون کمک کرد، یه ستاره بزنید ⭐
 
