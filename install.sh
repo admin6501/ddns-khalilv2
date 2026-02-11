@@ -676,14 +676,20 @@ do_restart() {
 do_uninstall() {
   is_installed || { fail "Nothing to uninstall."; pause_menu; return; }
 
+  # Read DB_NAME from backend .env
+  local UNINSTALL_DB_NAME=""
+  if [[ -f "${INSTALL_DIR}/backend/.env" ]]; then
+    UNINSTALL_DB_NAME=$(grep "^DB_NAME=" "${INSTALL_DIR}/backend/.env" 2>/dev/null | cut -d= -f2 | tr -d '"' | tr -d "'")
+  fi
+  UNINSTALL_DB_NAME="${UNINSTALL_DB_NAME:-khalilv2_dns}"
+
   echo ""
   echo -e "  ${R}${B}WARNING: This will permanently remove:${N}"
   echo -e "  ${R}  • Backend service & config${N}"
   echo -e "  ${R}  • Nginx site config${N}"
   echo -e "  ${R}  • Application files at ${INSTALL_DIR}${N}"
   echo -e "  ${R}  • SSL certificates for ${DOMAIN}${N}"
-  echo ""
-  echo -e "  ${Y}MongoDB data will NOT be deleted.${N}"
+  echo -e "  ${R}  • MongoDB database: ${UNINSTALL_DB_NAME}${N}"
   echo ""
 
   confirm "${R}Type Y to confirm uninstall${N} y/N" "n" || { info "Cancelled."; pause_menu; return; }
@@ -720,6 +726,18 @@ do_uninstall() {
     success "SSL certificate removed"
   fi
 
+  # Drop MongoDB database
+  info "Dropping database: ${UNINSTALL_DB_NAME}..."
+  if command -v mongosh &>/dev/null; then
+    mongosh --quiet --eval "db.getSiblingDB('${UNINSTALL_DB_NAME}').dropDatabase()" 2>/dev/null && \
+      success "Database ${UNINSTALL_DB_NAME} dropped" || warn "Could not drop database"
+  elif command -v mongo &>/dev/null; then
+    mongo --quiet --eval "db.getSiblingDB('${UNINSTALL_DB_NAME}').dropDatabase()" 2>/dev/null && \
+      success "Database ${UNINSTALL_DB_NAME} dropped" || warn "Could not drop database"
+  else
+    warn "mongosh/mongo not found. Drop manually: mongosh --eval 'db.getSiblingDB(\"${UNINSTALL_DB_NAME}\").dropDatabase()'"
+  fi
+
   # Remove app files
   info "Removing application files..."
   rm -rf "$INSTALL_DIR"
@@ -733,10 +751,7 @@ do_uninstall() {
 
   echo ""
   draw_line "$G"
-  echo -e "  ${G}${B}Uninstall complete.${N}"
-  echo ""
-  echo -e "  ${D}MongoDB data was preserved. To remove it:${N}"
-  echo -e "  ${D}  mongosh --eval 'db.getSiblingDB(\"khalilv2_dns\").dropDatabase()'${N}"
+  echo -e "  ${G}${B}Uninstall complete. Everything has been removed.${N}"
   draw_line "$G"
   echo ""
 
