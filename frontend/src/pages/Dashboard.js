@@ -71,6 +71,10 @@ export default function Dashboard() {
     proxied: false,
   });
 
+  // Referral state
+  const [referralStats, setReferralStats] = useState(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
   const fetchRecords = useCallback(async () => {
     try {
       const res = await dnsAPI.listRecords();
@@ -82,9 +86,26 @@ export default function Dashboard() {
     }
   }, []);
 
+  const fetchReferralStats = useCallback(async () => {
+    try {
+      const res = await referralAPI.getStats();
+      setReferralStats(res.data);
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     fetchRecords();
-  }, [fetchRecords]);
+    fetchReferralStats();
+  }, [fetchRecords, fetchReferralStats]);
+
+  const referralLink = `${window.location.origin}/register?ref=${user?.referral_code || ''}`;
+
+  const copyReferralLink = () => {
+    navigator.clipboard.writeText(referralLink).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  };
 
   const resetForm = () => {
     setFormData({ name: '', record_type: 'A', content: '', ttl: 1, proxied: false });
