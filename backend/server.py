@@ -28,7 +28,7 @@ db = client[os.environ['DB_NAME']]
 CF_API_TOKEN = os.environ.get('CLOUDFLARE_API_TOKEN', '')
 CF_ZONE_ID = os.environ.get('CLOUDFLARE_ZONE_ID', '')
 CF_API_BASE = "https://api.cloudflare.com/client/v4"
-DOMAIN_NAME = os.environ.get('DOMAIN_NAME', 'khalilv2.com')
+DOMAIN_NAME = os.environ.get('DOMAIN_NAME', 'example.com')
 
 # JWT config
 JWT_SECRET = os.environ.get('JWT_SECRET', 'fallback_secret')
