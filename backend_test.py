@@ -860,6 +860,248 @@ class DNSAPITester:
             response, error
         )
 
+    def test_referral_system_setup(self):
+        """Setup referral system test - create referrer user"""
+        timestamp = int(datetime.now().timestamp())
+        self.referrer_data = {
+            "email": f"referrer_{timestamp}@example.com",
+            "password": "ReferrerPass123!",
+            "name": f"Referrer User {timestamp}"
+        }
+        
+        success, response, error = self.make_request(
+            'POST', 'auth/register', 
+            self.referrer_data, 
+            expected_status=200
+        )
+        
+        if success and response and 'user' in response:
+            self.referrer_user = response['user']
+            self.referrer_token = response['token']
+            # Store referral code
+            self.referral_code = self.referrer_user.get('referral_code', '')
+            
+        return self.log_result(
+            "Referral System Setup (Create Referrer)", 
+            success and self.referral_code, 
+            response, error
+        )
+
+    def test_user_has_referral_code_on_registration(self):
+        """Test that new users get unique referral codes"""
+        # Already tested in setup, just verify
+        return self.log_result(
+            "New User Gets Unique Referral Code", 
+            bool(self.referral_code), 
+            {"referral_code": self.referral_code}, None
+        )
+
+    def test_get_referral_stats_initial(self):
+        """Test GET /api/referral/stats returns initial stats"""
+        # Store current token and use referrer token
+        current_token = self.token
+        self.token = self.referrer_token
+        
+        success, response, error = self.make_request(
+            'GET', 'referral/stats',
+            expected_status=200
+        )
+        
+        # Check response structure
+        stats_valid = False
+        if success and response:
+            expected_fields = ['referral_code', 'referral_count', 'referral_bonus', 'bonus_per_invite', 'referred_users']
+            stats_valid = all(field in response for field in expected_fields)
+            # Should have 0 referrals initially
+            stats_valid = stats_valid and response.get('referral_count', -1) == 0
+            stats_valid = stats_valid and response.get('referral_bonus', -1) == 0
+            
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Get Referral Stats (Initial)", 
+            success and stats_valid, 
+            response, error
+        )
+
+    def test_referral_bonus_in_admin_settings(self):
+        """Test admin settings include referral_bonus_per_invite"""
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        success, response, error = self.make_request(
+            'GET', 'admin/settings',
+            expected_status=200
+        )
+        
+        # Check if referral_bonus_per_invite is present
+        has_referral_bonus = False
+        if success and response:
+            has_referral_bonus = 'referral_bonus_per_invite' in response
+            # Should have a default value
+            has_referral_bonus = has_referral_bonus and isinstance(response.get('referral_bonus_per_invite'), int)
+            
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Settings Include Referral Bonus", 
+            success and has_referral_bonus, 
+            response, error
+        )
+
+    def test_update_referral_bonus_in_admin_settings(self):
+        """Test admin can update referral_bonus_per_invite"""
+        # Store current token
+        current_token = self.token
+        self.token = self.admin_token
+        
+        # Update referral bonus to 2 records per invite
+        settings_update = {
+            "referral_bonus_per_invite": 2
+        }
+        
+        success, response, error = self.make_request(
+            'PUT', 'admin/settings', 
+            settings_update, 
+            expected_status=200
+        )
+        
+        # Verify update worked
+        if success and response:
+            success = response.get('referral_bonus_per_invite') == 2
+            
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Admin Update Referral Bonus Setting", 
+            success, 
+            response, error
+        )
+
+    def test_registration_with_referral_code(self):
+        """Test registration with referral code gives referrer bonus"""
+        # First get referrer's current stats
+        current_token = self.token
+        self.token = self.referrer_token
+        
+        # Get initial stats
+        initial_success, initial_response, _ = self.make_request(
+            'GET', 'referral/stats',
+            expected_status=200
+        )
+        
+        initial_bonus = initial_response.get('referral_bonus', 0) if initial_response else 0
+        initial_count = initial_response.get('referral_count', 0) if initial_response else 0
+        
+        # Get referrer's current record limit
+        me_success, me_response, _ = self.make_request(
+            'GET', 'auth/me',
+            expected_status=200
+        )
+        initial_record_limit = me_response.get('record_limit', 0) if me_response else 0
+        
+        # Restore token
+        self.token = current_token
+        
+        # Register new user with referral code
+        timestamp = int(datetime.now().timestamp())
+        referred_user_data = {
+            "email": f"referred_{timestamp}@example.com",
+            "password": "ReferredPass123!",
+            "name": f"Referred User {timestamp}",
+            "referral_code": self.referral_code
+        }
+        
+        success, response, error = self.make_request(
+            'POST', 'auth/register', 
+            referred_user_data, 
+            expected_status=200
+        )
+        
+        if success and response:
+            self.referred_user = response.get('user', {})
+            # Verify referred_by is set
+            success = success and response.get('user', {}).get('referred_by') is not None
+            
+        # Now check referrer got bonus
+        self.token = self.referrer_token
+        
+        # Get updated stats
+        final_success, final_response, _ = self.make_request(
+            'GET', 'referral/stats',
+            expected_status=200
+        )
+        
+        # Get referrer's updated record limit
+        me_final_success, me_final_response, _ = self.make_request(
+            'GET', 'auth/me',
+            expected_status=200
+        )
+        final_record_limit = me_final_response.get('record_limit', 0) if me_final_response else 0
+        
+        # Verify bonus was applied
+        bonus_applied = False
+        if final_response:
+            expected_bonus = initial_bonus + 2  # We set bonus to 2 per invite
+            expected_count = initial_count + 1
+            expected_limit = initial_record_limit + 2
+            
+            bonus_applied = (
+                final_response.get('referral_bonus', 0) == expected_bonus and
+                final_response.get('referral_count', 0) == expected_count and
+                final_record_limit == expected_limit
+            )
+            
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Registration with Referral Code (Bonus Applied)", 
+            success and bonus_applied, 
+            {
+                "initial_bonus": initial_bonus, 
+                "final_bonus": final_response.get('referral_bonus', 0) if final_response else 0,
+                "initial_limit": initial_record_limit,
+                "final_limit": final_record_limit,
+                "referred_user_id": self.referred_user.get('id', '')
+            }, error
+        )
+
+    def test_referral_stats_with_referred_users(self):
+        """Test referral stats includes referred users list"""
+        # Use referrer token
+        current_token = self.token
+        self.token = self.referrer_token
+        
+        success, response, error = self.make_request(
+            'GET', 'referral/stats',
+            expected_status=200
+        )
+        
+        # Check referred users list
+        referred_users_valid = False
+        if success and response:
+            referred_users = response.get('referred_users', [])
+            referred_users_valid = (
+                isinstance(referred_users, list) and
+                len(referred_users) == 1 and  # Should have 1 referred user
+                'name' in referred_users[0] and
+                'date' in referred_users[0]
+            )
+            
+        # Restore token
+        self.token = current_token
+        
+        return self.log_result(
+            "Referral Stats Include Referred Users List", 
+            success and referred_users_valid, 
+            response, error
+        )
+
     def cleanup_records(self):
         """Clean up any created records"""
         print("\n🧹 Cleaning up test records...")
