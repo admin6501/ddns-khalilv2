@@ -1166,10 +1166,19 @@ class DNSAPITester:
         self.test_admin_bulk_exclude_admin_users()
         self.test_admin_bulk_delete_exclude_admin_users()
         
-        # 10. Test access control
+        # 10. Test referral system
+        self.test_referral_system_setup()
+        self.test_user_has_referral_code_on_registration()
+        self.test_get_referral_stats_initial()
+        self.test_referral_bonus_in_admin_settings()
+        self.test_update_referral_bonus_in_admin_settings()
+        self.test_registration_with_referral_code()
+        self.test_referral_stats_with_referred_users()
+        
+        # 11. Test access control
         self.test_non_admin_access_denied()
         
-        # 11. Test regular DNS record operations
+        # 12. Test regular DNS record operations
         self.test_list_dns_records_empty()
         
         # 12. Create first DNS record (A record)
