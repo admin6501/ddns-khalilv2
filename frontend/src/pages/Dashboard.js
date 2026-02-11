@@ -43,7 +43,7 @@ import {
 } from '../components/ui/table';
 import {
   Plus, Trash2, Pencil, Loader2, Globe, Server, Shield,
-  AlertTriangle, RefreshCw
+  AlertTriangle, RefreshCw, Gift, Copy, Check as CheckIcon, Users
 } from 'lucide-react';
 
 const DOMAIN = "khalilv2.com";
