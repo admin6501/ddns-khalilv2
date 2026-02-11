@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #═══════════════════════════════════════════════════════════════
-#  Fix script for khalilv2.com
+#  DNS Management Platform - Fix Script
 #  1. Removes Emergent traces from built files
 #  2. Fixes Nginx config for SPA routing (/admin etc)
 #  Run: sudo bash fix-server.sh
