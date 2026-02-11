@@ -302,6 +302,9 @@ async def login(user_data: UserLogin):
             "role": user.get("role", "user"),
             "record_count": user["record_count"],
             "record_limit": user["record_limit"],
+            "referral_code": user.get("referral_code", ""),
+            "referral_count": user.get("referral_count", 0),
+            "referral_bonus": user.get("referral_bonus", 0),
             "created_at": user["created_at"]
         }
     }
@@ -317,6 +320,9 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "role": current_user.get("role", "user"),
         "record_count": record_count,
         "record_limit": current_user["record_limit"],
+        "referral_code": current_user.get("referral_code", ""),
+        "referral_count": current_user.get("referral_count", 0),
+        "referral_bonus": current_user.get("referral_bonus", 0),
         "created_at": current_user["created_at"]
     }
 
