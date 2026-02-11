@@ -641,6 +641,25 @@ export default function Admin() {
                     <Label>{t('admin_contact_fa')}</Label>
                     <Input value={settings.contact_message_fa} onChange={(e) => setSettings(p => ({ ...p, contact_message_fa: e.target.value }))} dir="rtl" data-testid="admin-contact-fa-input" />
                   </div>
+                  <div className="pt-4 border-t border-border space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Gift className="w-4 h-4 text-primary" />
+                      {t('admin_referral_bonus')}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={settings.referral_bonus_per_invite}
+                      onChange={(e) => setSettings(p => ({ ...p, referral_bonus_per_invite: parseInt(e.target.value) || 0 }))}
+                      className="max-w-[200px]"
+                      data-testid="admin-referral-bonus-input"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {lang === 'fa'
+                        ? 'تعداد رکوردهای اضافه‌ای که به ازای هر دعوت موفق به کاربر داده میشه'
+                        : 'Number of bonus records given to the referrer for each successful invite'}
+                    </p>
+                  </div>
                   <Button onClick={handleSaveSettings} disabled={settingsSaving} data-testid="admin-save-settings-btn">
                     {settingsSaving ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Save className="w-4 h-4 me-2" />}
                     {t('admin_save_settings')}
