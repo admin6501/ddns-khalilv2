@@ -1445,11 +1445,7 @@ async def start_telegram_bot():
         await telegram_bot_app.start()
         await telegram_bot_app.updater.start_polling(
             drop_pending_updates=True,
-            allowed_updates=Update.ALL_TYPES,
-            read_timeout=30,
-            write_timeout=30,
-            connect_timeout=30,
-            pool_timeout=30
+            allowed_updates=Update.ALL_TYPES
         )
         bot_info = await telegram_bot_app.bot.get_me()
         logger.info(f"Telegram bot started successfully: @{bot_info.username} (ID: {bot_info.id})")
