@@ -134,6 +134,7 @@ class SettingsUpdate(BaseModel):
     contact_message_en: Optional[str] = None
     contact_message_fa: Optional[str] = None
     referral_bonus_per_invite: Optional[int] = None
+    default_free_records: Optional[int] = None
 
 # ============== HELPERS ==============
 
