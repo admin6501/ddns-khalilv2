@@ -420,7 +420,7 @@ async def create_record(record_data: DNSRecordCreate, current_user: dict = Depen
         )
     
     # Check for duplicate subdomain
-    full_name = f"{record_data.name}.{DOMAIN_NAME}" if record_data.name != "@" else DOMAIN_NAME
+    full_name = f"{record_data.name}.{CF_ZONE_DOMAIN}" if record_data.name != "@" else CF_ZONE_DOMAIN
     existing = await db.dns_records.find_one(
         {"full_name": full_name, "record_type": record_data.record_type},
         {"_id": 0}
