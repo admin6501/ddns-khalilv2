@@ -848,7 +848,233 @@ export default function Admin() {
           {/* ===== SETTINGS TAB ===== */}
           <TabsContent value="settings" className="space-y-6">
             <h2 className="text-xl font-semibold">{t('admin_settings')}</h2>
+
+            {/* ── Telegram Bot Management ── */}
+            <div className="rounded-xl border border-border bg-card p-6 space-y-5">
+              <div className="flex items-center gap-3 mb-2">
+                <Bot className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-semibold">{t('admin_bot_management')}</h3>
+                <Button variant="ghost" size="sm" onClick={fetchBotStatus} disabled={botLoading}>
+                  <RefreshCw className={`w-4 h-4 ${botLoading ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+
+              {botLoading ? (
+                <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Status */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Label className="min-w-[100px]">{t('admin_bot_status')}:</Label>
+                    {botStatus.bot_running ? (
+                      <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
+                        ● {t('admin_bot_running')}
+                      </Badge>
+                    ) : botStatus.has_token ? (
+                      <Badge variant="outline" className="text-yellow-600 border-yellow-500/30">
+                        ○ {t('admin_bot_stopped')}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground">
+                        ○ {t('admin_bot_no_token')}
+                      </Badge>
+                    )}
+                    {botStatus.bot_username && (
+                      <span className="text-sm text-muted-foreground">{botStatus.bot_username}</span>
+                    )}
+                  </div>
+
+                  {/* Token */}
+                  <div className="space-y-2">
+                    <Label>{t('admin_bot_token')}</Label>
+                    {botStatus.has_token && !showTokenInput ? (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <code className="text-sm bg-muted px-3 py-1.5 rounded font-mono">{botStatus.masked_token}</code>
+                        <Button variant="outline" size="sm" onClick={() => setShowTokenInput(true)}>
+                          <Pencil className="w-3 h-3 me-1" /> {lang === 'fa' ? 'تغییر' : 'Change'}
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={handleClearBotToken} disabled={botActionLoading === 'clear'}>
+                          {botActionLoading === 'clear' ? <Loader2 className="w-3 h-3 animate-spin me-1" /> : <Trash2 className="w-3 h-3 me-1" />}
+                          {t('admin_bot_clear_token')}
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={newBotToken}
+                          onChange={(e) => setNewBotToken(e.target.value)}
+                          placeholder={t('admin_bot_token_placeholder')}
+                          className="font-mono max-w-md"
+                          dir="ltr"
+                        />
+                        <Button size="sm" onClick={handleSaveBotToken} disabled={botActionLoading === 'token' || !newBotToken.trim()}>
+                          {botActionLoading === 'token' ? <Loader2 className="w-4 h-4 animate-spin me-1" /> : <Save className="w-4 h-4 me-1" />}
+                          {t('admin_bot_save_token')}
+                        </Button>
+                        {showTokenInput && (
+                          <Button variant="ghost" size="sm" onClick={() => { setShowTokenInput(false); setNewBotToken(''); }}>
+                            ✕
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Admin ID */}
+                  <div className="space-y-2">
+                    <Label>{t('admin_bot_admin_id')}</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={newAdminId}
+                        onChange={(e) => setNewAdminId(e.target.value)}
+                        placeholder={t('admin_bot_admin_id_placeholder')}
+                        className="max-w-[250px] font-mono"
+                        dir="ltr"
+                      />
+                      <Button size="sm" onClick={handleSaveAdminId} disabled={botActionLoading === 'admin'}>
+                        {botActionLoading === 'admin' ? <Loader2 className="w-4 h-4 animate-spin me-1" /> : <Save className="w-4 h-4 me-1" />}
+                        {t('admin_bot_save_admin')}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {lang === 'fa' ? 'آیدی عددی تلگرام ادمین (از @userinfobot بگیرید)' : 'Numeric Telegram ID (get from @userinfobot)'}
+                    </p>
+                  </div>
+
+                  {/* Start/Stop */}
+                  {botStatus.has_token && (
+                    <div className="flex gap-2 pt-2 border-t border-border">
+                      {botStatus.bot_running ? (
+                        <>
+                          <Button variant="outline" className="text-destructive hover:text-destructive" onClick={handleStopBot} disabled={!!botActionLoading}>
+                            {botActionLoading === 'stop' ? <Loader2 className="w-4 h-4 animate-spin me-1" /> : <Square className="w-4 h-4 me-1" />}
+                            {t('admin_bot_stop')}
+                          </Button>
+                          <Button variant="outline" onClick={handleStartBot} disabled={!!botActionLoading}>
+                            {botActionLoading === 'start' ? <Loader2 className="w-4 h-4 animate-spin me-1" /> : <RefreshCw className="w-4 h-4 me-1" />}
+                            {t('admin_bot_restart')}
+                          </Button>
+                        </>
+                      ) : (
+                        <Button onClick={handleStartBot} disabled={!!botActionLoading}>
+                          {botActionLoading === 'start' ? <Loader2 className="w-4 h-4 animate-spin me-1" /> : <Play className="w-4 h-4 me-1" />}
+                          {t('admin_bot_start')}
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ── Cloudflare Zones ── */}
+            <div className="rounded-xl border border-border bg-card p-6 space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Globe className="w-5 h-5 text-primary" />
+                  <h3 className="text-lg font-semibold">{t('admin_zones')}</h3>
+                  <Button variant="ghost" size="sm" onClick={fetchZones} disabled={zonesLoading}>
+                    <RefreshCw className={`w-4 h-4 ${zonesLoading ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => setShowAddZone(!showAddZone)}>
+                  <Plus className="w-4 h-4 me-1" /> {t('admin_add_zone')}
+                </Button>
+              </div>
+
+              {/* Add Zone Form */}
+              {showAddZone && (
+                <div className="rounded-lg border border-dashed border-primary/30 bg-primary/5 p-4 space-y-3">
+                  <div className="space-y-2">
+                    <Label>{t('admin_zone_id')}</Label>
+                    <Input
+                      value={newZoneId}
+                      onChange={(e) => setNewZoneId(e.target.value)}
+                      placeholder={t('admin_zone_id_placeholder')}
+                      className="font-mono"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>{t('admin_zone_api_token')}</Label>
+                    <Input
+                      value={newZoneToken}
+                      onChange={(e) => setNewZoneToken(e.target.value)}
+                      placeholder="API Token"
+                      className="font-mono"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleAddZone} disabled={addZoneLoading || !newZoneId.trim()}>
+                      {addZoneLoading ? <Loader2 className="w-4 h-4 animate-spin me-1" /> : <Plus className="w-4 h-4 me-1" />}
+                      {t('admin_add_zone')}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setShowAddZone(false); setNewZoneId(''); setNewZoneToken(''); }}>
+                      ✕
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Zones List */}
+              {zonesLoading ? (
+                <div className="flex justify-center p-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+              ) : zones.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">
+                  {lang === 'fa' ? 'زونی ثبت نشده' : 'No zones configured'}
+                </p>
+              ) : (
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('admin_zone_domain')}</TableHead>
+                        <TableHead>{t('admin_zone_id')}</TableHead>
+                        <TableHead>{t('admin_bot_status')}</TableHead>
+                        <TableHead className="w-[80px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {zones.map((z) => (
+                        <TableRow key={z.id}>
+                          <TableCell className="font-medium">
+                            {z.domain}
+                            {z.is_primary && (
+                              <Badge className="ms-2 bg-primary/10 text-primary border-primary/20" variant="outline">
+                                {t('admin_zone_primary')}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <code className="text-xs bg-muted px-2 py-0.5 rounded font-mono">{z.id.substring(0, 12)}...</code>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
+                              {z.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {!z.is_primary && (
+                              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleRemoveZone(z.id)}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+
+            {/* ── Site Settings ── */}
             <div className="rounded-xl border border-border bg-card p-6 space-y-5 max-w-xl">
+              <div className="flex items-center gap-3 mb-2">
+                <Settings className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-semibold">{t('admin_settings')}</h3>
+              </div>
               {settingsLoading ? (
                 <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
               ) : (
