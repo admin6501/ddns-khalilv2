@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { ConfigProvider } from "./contexts/ConfigContext";
 import { Toaster } from "./components/ui/sonner";
 import Navbar from "./components/Navbar";
 import Landing from "./pages/Landing";
