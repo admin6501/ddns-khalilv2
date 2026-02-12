@@ -1208,7 +1208,7 @@ async def start_telegram_bot():
             record_type = data.replace("add_type_", "")
             context.user_data["add_type"] = record_type
             context.user_data["add_step"] = "name"
-            example = t(lang, f"add_example_{record_type}", domain=DOMAIN_NAME)
+            example = t(lang, f"add_example_{record_type}", domain=CF_ZONE_DOMAIN)
             kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="main_menu")]])
             await query.edit_message_text(
                 t(lang, "add_enter_name", type=record_type, example=example),
