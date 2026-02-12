@@ -1418,13 +1418,9 @@ async def start_telegram_bot():
             else:
                 # Language already chosen, not logged in → show welcome + login
                 context.user_data["lang"] = lang
-                kb = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(t(lang, "btn_login"), callback_data="help_login")],
-                    [InlineKeyboardButton(t(lang, "btn_lang"), callback_data="toggle_lang_prelogin")]
-                ])
                 await update.message.reply_text(
                     t(lang, "welcome_new", domain=CF_ZONE_DOMAIN),
-                    reply_markup=kb
+                    reply_markup=prelogin_kb(lang, chat_id)
                 )
         except Exception as e:
             logger.error(f"Error in cmd_start: {e}", exc_info=True)
