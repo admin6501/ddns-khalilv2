@@ -192,8 +192,29 @@ async def get_admin_user(current_user: dict = Depends(get_current_user)):
 
 # ============== CLOUDFLARE API ==============
 
+async def cf_fetch_zone_domain():
+    """Fetch actual domain name from Cloudflare zone. Called on startup."""
+    global CF_ZONE_DOMAIN
+    if not CF_ZONE_ID or not CF_API_TOKEN:
+        logger.warning("Cloudflare zone ID or API token not set, using DOMAIN_NAME as fallback")
+        return
+    try:
+        async with httpx.AsyncClient() as client_http:
+            response = await client_http.get(
+                f"{CF_API_BASE}/zones/{CF_ZONE_ID}",
+                headers={"Authorization": f"Bearer {CF_API_TOKEN}"}
+            )
+            data = response.json()
+            if data.get("success") and data.get("result"):
+                CF_ZONE_DOMAIN = data["result"]["name"]
+                logger.info(f"Cloudflare zone domain detected: {CF_ZONE_DOMAIN}")
+            else:
+                logger.warning(f"Could not fetch zone domain, using DOMAIN_NAME: {DOMAIN_NAME}")
+    except Exception as e:
+        logger.warning(f"Failed to fetch zone domain from Cloudflare: {e}")
+
 async def cf_create_record(name: str, record_type: str, content: str, ttl: int = 1, proxied: bool = False):
-    full_name = f"{name}.{DOMAIN_NAME}" if name != "@" else DOMAIN_NAME
+    full_name = f"{name}.{CF_ZONE_DOMAIN}" if name != "@" else CF_ZONE_DOMAIN
     async with httpx.AsyncClient() as client_http:
         response = await client_http.post(
             f"{CF_API_BASE}/zones/{CF_ZONE_ID}/dns_records",
