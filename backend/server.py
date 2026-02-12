@@ -152,6 +152,24 @@ def create_token(user_id: str, email: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
+# ============== ACTIVITY LOG HELPER ==============
+
+async def log_activity(user_id: str, user_email: str, action: str, details: str = "", ip: str = ""):
+    """Log user/admin activity to activity_logs collection."""
+    log_doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "user_email": user_email,
+        "action": action,
+        "details": details,
+        "ip": ip,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    try:
+        await db.activity_logs.insert_one(log_doc)
+    except Exception as e:
+        logger.warning(f"Failed to log activity: {e}")
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
