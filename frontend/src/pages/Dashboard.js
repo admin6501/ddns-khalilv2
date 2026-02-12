@@ -435,6 +435,75 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* Activity Log */}
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <div className="flex items-center justify-between p-4 border-b border-border">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Clock className="w-5 h-5 text-primary" />
+              {lang === 'fa' ? 'لاگ فعالیت' : 'Activity Log'}
+            </h2>
+            <Button variant="ghost" size="sm" onClick={() => fetchActivityLogs(1)}>
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
+          {activityLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : activityLogs.length === 0 ? (
+            <div className="text-center p-8 text-muted-foreground text-sm">
+              {lang === 'fa' ? 'هنوز فعالیتی ثبت نشده.' : 'No activity yet.'}
+            </div>
+          ) : (
+            <>
+              <div className="divide-y divide-border">
+                {activityLogs.map((log) => (
+                  <div key={log.id} className="flex items-start gap-3 p-4 hover:bg-muted/30 transition-colors">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                      log.action === 'record_created' ? 'bg-green-500/10 text-green-500' :
+                      log.action === 'record_deleted' ? 'bg-red-500/10 text-red-500' :
+                      log.action === 'record_updated' ? 'bg-blue-500/10 text-blue-500' :
+                      log.action === 'login' ? 'bg-purple-500/10 text-purple-500' :
+                      'bg-muted text-muted-foreground'
+                    }`}>
+                      {log.action === 'record_created' ? <Plus className="w-4 h-4" /> :
+                       log.action === 'record_deleted' ? <Trash2 className="w-4 h-4" /> :
+                       log.action === 'record_updated' ? <Pencil className="w-4 h-4" /> :
+                       <Clock className="w-4 h-4" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">
+                        {log.action === 'record_created' ? (lang === 'fa' ? 'رکورد ساخته شد' : 'Record Created') :
+                         log.action === 'record_deleted' ? (lang === 'fa' ? 'رکورد حذف شد' : 'Record Deleted') :
+                         log.action === 'record_updated' ? (lang === 'fa' ? 'رکورد ویرایش شد' : 'Record Updated') :
+                         log.action === 'login' ? (lang === 'fa' ? 'ورود به سیستم' : 'Login') :
+                         log.action === 'register' ? (lang === 'fa' ? 'ثبت‌نام' : 'Register') :
+                         log.action === 'telegram_linked' ? (lang === 'fa' ? 'اتصال تلگرام' : 'Telegram Linked') :
+                         log.action}
+                      </p>
+                      {log.details && <p className="text-xs text-muted-foreground font-mono truncate">{log.details}</p>}
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {new Date(log.created_at).toLocaleDateString(lang === 'fa' ? 'fa-IR' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {activityPages > 1 && (
+                <div className="flex items-center justify-center gap-2 p-3 border-t border-border">
+                  <Button variant="ghost" size="sm" disabled={activityPage <= 1} onClick={() => fetchActivityLogs(activityPage - 1)}>
+                    {lang === 'fa' ? 'قبلی' : 'Prev'}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">{activityPage}/{activityPages}</span>
+                  <Button variant="ghost" size="sm" disabled={activityPage >= activityPages} onClick={() => fetchActivityLogs(activityPage + 1)}>
+                    {lang === 'fa' ? 'بعدی' : 'Next'}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Create Dialog */}
