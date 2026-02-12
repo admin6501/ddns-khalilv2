@@ -328,7 +328,7 @@ async def register(user_data: UserRegister):
             "plan": "free",
             "role": "user",
             "record_count": 0,
-            "record_limit": PLAN_LIMITS["free"],
+            "record_limit": default_free,
             "referral_code": ref_code,
             "referral_count": 0,
             "referral_bonus": 0,
