@@ -1,11 +1,11 @@
 /**
  * Site Configuration
  * 
- * The domain name is read from the REACT_APP_DOMAIN_NAME environment variable.
- * When deploying with install.sh, this is automatically set based on the domain
- * the user provides during installation.
- * 
- * Fallback: If the env var is not set, it uses window.location.hostname.
+ * DOMAIN: The site domain (from REACT_APP_DOMAIN_NAME env var or hostname)
+ * DNS_DOMAIN: The Cloudflare zone domain for DNS records.
+ *   This is fetched from the backend /api/config endpoint.
+ *   Use useConfig().dns_domain from ConfigContext for the live value.
+ *   This static export is only a fallback.
  */
 
 export const DOMAIN = process.env.REACT_APP_DOMAIN_NAME || window.location.hostname;
