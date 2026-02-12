@@ -2093,7 +2093,7 @@ async def start_telegram_bot():
         user = await get_user_by_chat(chat_id)
         lang = context.user_data.get("lang", "fa")
         if not user:
-            await send_not_logged_in(update, lang)
+            await send_not_logged_in(update, lang, chat_id)
             context.user_data.pop("add_step", None)
             context.user_data.pop("add_type", None)
             context.user_data.pop("add_name", None)
