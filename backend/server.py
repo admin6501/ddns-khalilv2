@@ -1026,47 +1026,43 @@ async def start_telegram_bot():
     async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
         user = await get_user_by_chat(chat_id)
+        lang = get_lang(user)
         if user:
             await update.message.reply_text(
-                f"👋 سلام {user['name']}!\n"
-                f"🌐 مدیریت DNS {DOMAIN_NAME}\n\n"
-                f"از دکمه‌های زیر استفاده کنید:",
-                reply_markup=main_menu_kb()
+                t(lang, "welcome_logged_in", name=user['name'], domain=DOMAIN_NAME),
+                reply_markup=main_menu_kb(lang)
             )
         else:
             kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔑 راهنمای ورود", callback_data="help_login")]
+                [InlineKeyboardButton(t(lang, "btn_login"), callback_data="help_login")],
+                [InlineKeyboardButton("🌐 English", callback_data="set_lang_en"),
+                 InlineKeyboardButton("🌐 فارسی", callback_data="set_lang_fa")]
             ])
             await update.message.reply_text(
-                f"👋 به ربات مدیریت DNS {DOMAIN_NAME} خوش آمدید!\n\n"
-                f"برای شروع، اکانت خود را متصل کنید:",
+                t(lang, "welcome_new", domain=DOMAIN_NAME),
                 reply_markup=kb
             )
 
     # ── /login ───────────────────────────────────────────────
     async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
         args = context.args
+        lang = context.user_data.get("lang", "fa")
         if len(args) < 2:
-            await update.message.reply_text(
-                "📧 لطفاً ایمیل و رمز عبور خود را ارسال کنید:\n\n"
-                "`/login email password`\n\n"
-                "مثال:\n"
-                "`/login user@example.com mypass123`",
-                parse_mode="Markdown"
-            )
+            await update.message.reply_text(t(lang, "login_usage"), parse_mode="Markdown")
             return
         email, password = args[0], args[1]
         user = await db.users.find_one({"email": email}, {"_id": 0})
         if not user or not verify_password(password, user["password_hash"]):
-            await update.message.reply_text("❌ ایمیل یا رمز عبور اشتباه است.", reply_markup=back_menu_kb())
+            await update.message.reply_text(t(lang, "login_fail"), reply_markup=back_menu_kb(lang))
             return
         chat_id = str(update.effective_chat.id)
-        await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_chat_id": chat_id}})
+        bot_lang = context.user_data.get("lang", "fa")
+        await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_chat_id": chat_id, "telegram_lang": bot_lang}})
         await log_activity(user["id"], user["email"], "telegram_linked", f"Telegram linked: {chat_id}")
+        lang = bot_lang
         await update.message.reply_text(
-            f"✅ اکانت {user['name']} ({email}) با موفقیت متصل شد!\n\n"
-            f"⚠️ توصیه: پیام /login خود را حذف کنید.",
-            reply_markup=main_menu_kb()
+            t(lang, "login_success", name=user['name'], email=email),
+            reply_markup=main_menu_kb(lang)
         )
 
     # ── Callback Handler ─────────────────────────────────────
