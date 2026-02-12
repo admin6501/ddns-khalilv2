@@ -532,7 +532,7 @@ export default function Dashboard() {
                   placeholder={t('form_subdomain_placeholder')}
                   data-testid="form-subdomain-input"
                 />
-                <span className="text-sm text-muted-foreground whitespace-nowrap">.{DOMAIN}</span>
+                <span className="text-sm text-muted-foreground whitespace-nowrap">.{DNS_DOMAIN}</span>
               </div>
             </div>
             <div className="space-y-2">
