@@ -1087,11 +1087,17 @@ async def start_telegram_bot():
     # ── Callback Handler ─────────────────────────────────────
     async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
-        await query.answer()
+        try:
+            await query.answer()
+        except Exception:
+            pass
         data = query.data
         chat_id = update.effective_chat.id
+        logger.info(f"Telegram callback: {data} from chat_id={chat_id}")
         user = await get_user_by_chat(chat_id)
         lang = get_lang(user) if user else context.user_data.get("lang", "fa")
+
+        try:
 
         # ── Set language (before login) ──
         if data in ("set_lang_fa", "set_lang_en"):
