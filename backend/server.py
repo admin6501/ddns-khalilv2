@@ -1537,7 +1537,7 @@ async def start_telegram_bot():
         # ── Records List ──
         elif data == "records":
             if not user:
-                await send_not_logged_in(query, lang)
+                await send_not_logged_in(query, lang, chat_id)
                 return
             records = await db.dns_records.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
             if not records:
@@ -1562,7 +1562,7 @@ async def start_telegram_bot():
         # ── Status ──
         elif data == "status":
             if not user:
-                await send_not_logged_in(query, lang)
+                await send_not_logged_in(query, lang, chat_id)
                 return
             record_count = await db.dns_records.count_documents({"user_id": user["id"]})
             text = t(lang, "status_title") + t(lang, "status_body",
@@ -1574,7 +1574,7 @@ async def start_telegram_bot():
         # ── Referral ──
         elif data == "referral":
             if not user:
-                await send_not_logged_in(query, lang)
+                await send_not_logged_in(query, lang, chat_id)
                 return
             ref_link = f"https://{DOMAIN_NAME}/register?ref={user.get('referral_code', '')}"
             text = t(lang, "referral_title") + t(lang, "referral_body",
@@ -1584,7 +1584,7 @@ async def start_telegram_bot():
         # ── Add Record: Choose Type ──
         elif data == "add_start":
             if not user:
-                await send_not_logged_in(query, lang)
+                await send_not_logged_in(query, lang, chat_id)
                 return
             record_count = await db.dns_records.count_documents({"user_id": user["id"]})
             if record_count >= user["record_limit"]:
@@ -1613,7 +1613,7 @@ async def start_telegram_bot():
         # ── Delete Record: List ──
         elif data == "delete_list":
             if not user:
-                await send_not_logged_in(query, lang)
+                await send_not_logged_in(query, lang, chat_id)
                 return
             records = await db.dns_records.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
             if not records:
@@ -1643,7 +1643,7 @@ async def start_telegram_bot():
         elif data.startswith("confirm_del_"):
             record_id = data[12:]
             if not user:
-                await send_not_logged_in(query, lang)
+                await send_not_logged_in(query, lang, chat_id)
                 return
             record = await db.dns_records.find_one({"id": record_id, "user_id": user["id"]}, {"_id": 0})
             if not record:
@@ -1663,7 +1663,7 @@ async def start_telegram_bot():
         # ── Logout ──
         elif data == "logout":
             if not user:
-                await send_not_logged_in(query, lang)
+                await send_not_logged_in(query, lang, chat_id)
                 return
             kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton(t(lang, "btn_yes_logout"), callback_data="confirm_logout"),
