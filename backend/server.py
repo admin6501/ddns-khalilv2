@@ -1494,7 +1494,7 @@ async def start_telegram_bot():
             if user:
                 await query.edit_message_text(
                     t(new_lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
-                    reply_markup=main_menu_kb(new_lang, chat_id)
+                    reply_markup=main_menu_kb(new_lang, chat_id, user)
                 )
             else:
                 kb = InlineKeyboardMarkup([
