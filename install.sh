@@ -116,6 +116,16 @@ cleanup_swap() {
   fi
 }
 
+# ─── Clear stale Telegram bot locks from MongoDB ─────────────────────────────
+clear_bot_lock() {
+  local LOCK_DB="${DB_NAME:-khalilv2}"
+  if command -v mongosh &>/dev/null; then
+    mongosh --quiet --eval "db.getSiblingDB('${LOCK_DB}').bot_lock.drop()" 2>/dev/null
+  elif command -v mongo &>/dev/null; then
+    mongo --quiet --eval "db.getSiblingDB('${LOCK_DB}').bot_lock.drop()" 2>/dev/null
+  fi
+}
+
 # ─── OS Detection ────────────────────────────────────────────────────────────
 detect_os() {
   [[ -f /etc/os-release ]] && . /etc/os-release || fatal "Cannot detect OS"
