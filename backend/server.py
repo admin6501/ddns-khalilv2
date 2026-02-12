@@ -747,6 +747,7 @@ async def get_site_config():
     settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
     return {
         "domain": DOMAIN_NAME,
+        "dns_domain": CF_ZONE_DOMAIN,
         "telegram_id": (settings or {}).get("telegram_id", ""),
         "telegram_url": (settings or {}).get("telegram_url", ""),
         "contact_message_en": (settings or {}).get("contact_message_en", ""),
@@ -759,13 +760,14 @@ async def get_site_config():
 async def get_contact_info():
     settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
     if not settings:
-        return {"telegram_id": "", "telegram_url": "", "contact_message_en": "", "contact_message_fa": "", "domain": DOMAIN_NAME}
+        return {"telegram_id": "", "telegram_url": "", "contact_message_en": "", "contact_message_fa": "", "domain": DOMAIN_NAME, "dns_domain": CF_ZONE_DOMAIN}
     return {
         "telegram_id": settings.get("telegram_id", ""),
         "telegram_url": settings.get("telegram_url", ""),
         "contact_message_en": settings.get("contact_message_en", ""),
         "contact_message_fa": settings.get("contact_message_fa", ""),
-        "domain": DOMAIN_NAME
+        "domain": DOMAIN_NAME,
+        "dns_domain": CF_ZONE_DOMAIN
     }
 
 # ============== PLANS ROUTES ==============
