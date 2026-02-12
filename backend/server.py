@@ -1097,8 +1097,6 @@ async def start_telegram_bot():
         user = await get_user_by_chat(chat_id)
         lang = get_lang(user) if user else context.user_data.get("lang", "fa")
 
-        try:
-
         # ── Set language (before login) ──
         if data in ("set_lang_fa", "set_lang_en"):
             new_lang = "fa" if data == "set_lang_fa" else "en"
