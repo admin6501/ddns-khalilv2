@@ -1368,8 +1368,7 @@ async def start_telegram_bot():
         telegram_bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
         commands = [
-            BotCommand("start", "منوی اصلی"),
-            BotCommand("login", "ورود - /login email password"),
+            BotCommand("start", "منوی اصلی / Main Menu"),
         ]
 
         await telegram_bot_app.initialize()
