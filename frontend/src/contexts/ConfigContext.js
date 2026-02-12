@@ -8,6 +8,7 @@ const API_BASE = `${process.env.REACT_APP_BACKEND_URL}/api`;
 export function ConfigProvider({ children }) {
   const [config, setConfig] = useState({
     domain: '',
+    dns_domain: '',
     telegram_id: '',
     telegram_url: '',
     contact_message_en: '',
@@ -21,7 +22,8 @@ export function ConfigProvider({ children }) {
       setConfig({ ...res.data, loaded: true });
     }).catch(() => {
       // Fallback: extract domain from current URL
-      setConfig(prev => ({ ...prev, domain: window.location.hostname, loaded: true }));
+      const fallbackDomain = window.location.hostname;
+      setConfig(prev => ({ ...prev, domain: fallbackDomain, dns_domain: fallbackDomain, loaded: true }));
     });
   }, []);
 
