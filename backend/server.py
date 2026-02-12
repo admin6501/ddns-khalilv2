@@ -2072,7 +2072,7 @@ async def start_telegram_bot():
 
         # ── Admin Settings Edit Flow ──
         adm_edit_step = context.user_data.get("adm_edit_step")
-        if adm_edit_step == "value" and is_admin_chat(chat_id):
+        if adm_edit_step == "value" and is_admin_user(user, chat_id):
             field = context.user_data.get("adm_edit_field", "")
             context.user_data.pop("adm_edit_step", None)
             context.user_data.pop("adm_edit_field", None)
