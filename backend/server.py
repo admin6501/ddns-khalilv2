@@ -1071,175 +1071,168 @@ async def start_telegram_bot():
         await query.answer()
         data = query.data
         chat_id = update.effective_chat.id
+        user = await get_user_by_chat(chat_id)
+        lang = get_lang(user) if user else context.user_data.get("lang", "fa")
+
+        # ── Set language (before login) ──
+        if data in ("set_lang_fa", "set_lang_en"):
+            new_lang = "fa" if data == "set_lang_fa" else "en"
+            context.user_data["lang"] = new_lang
+            if user:
+                await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_lang": new_lang}})
+            await query.edit_message_text(
+                t(new_lang, "lang_changed"),
+                reply_markup=main_menu_kb(new_lang) if user else InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t(new_lang, "btn_login"), callback_data="help_login")]
+                ])
+            )
+            return
+
+        # ── Toggle language ──
+        if data == "toggle_lang":
+            new_lang = "en" if lang == "fa" else "fa"
+            context.user_data["lang"] = new_lang
+            if user:
+                await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_lang": new_lang}})
+                lang = new_lang
+            await query.edit_message_text(
+                t(new_lang, "welcome_logged_in", name=user['name'], domain=DOMAIN_NAME) if user else t(new_lang, "lang_changed"),
+                reply_markup=main_menu_kb(new_lang)
+            )
+            return
 
         # ── Main Menu ──
         if data == "main_menu":
-            user = await get_user_by_chat(chat_id)
             if not user:
-                await send_not_logged_in(query)
+                await send_not_logged_in(query, lang)
                 return
             await query.edit_message_text(
-                f"👋 سلام {user['name']}!\n🌐 {DOMAIN_NAME}\n\nاز دکمه‌های زیر استفاده کنید:",
-                reply_markup=main_menu_kb()
+                t(lang, "welcome_logged_in", name=user['name'], domain=DOMAIN_NAME),
+                reply_markup=main_menu_kb(lang)
             )
 
         # ── Help Login ──
         elif data == "help_login":
             await query.edit_message_text(
-                "🔑 **راهنمای ورود**\n\n"
-                "دستور زیر را ارسال کنید:\n\n"
-                "`/login ایمیل رمزعبور`\n\n"
-                "مثال:\n"
-                "`/login user@example.com mypass123`\n\n"
-                "⚠️ بعد از ورود موفق، پیام لاگین را حذف کنید.",
+                t(lang, "help_login_title") + "\n\n" + t(lang, "help_login_body"),
                 parse_mode="Markdown",
-                reply_markup=back_menu_kb()
+                reply_markup=back_menu_kb(lang)
             )
 
         # ── Records List ──
         elif data == "records":
-            user = await get_user_by_chat(chat_id)
             if not user:
-                await send_not_logged_in(query)
+                await send_not_logged_in(query, lang)
                 return
             records = await db.dns_records.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
             if not records:
                 kb = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("➕ ساخت رکورد", callback_data="add_start")],
-                    [InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")]
+                    [InlineKeyboardButton(t(lang, "btn_add"), callback_data="add_start")],
+                    [InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")]
                 ])
-                await query.edit_message_text("📭 هیچ رکوردی ندارید.", reply_markup=kb)
+                await query.edit_message_text(t(lang, "no_records"), reply_markup=kb)
                 return
-            text = f"📝 رکوردهای شما ({len(records)}/{user['record_limit']}):\n\n"
+            text = t(lang, "records_title", count=len(records), limit=user['record_limit'])
             for r in records:
                 proxy = "🟠" if r.get("proxied") else "⚪️"
                 text += f"{proxy} `{r['record_type']}` │ {r['full_name']} → `{r['content']}`\n"
             kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton("➕ ساخت رکورد", callback_data="add_start"),
-                 InlineKeyboardButton("🗑 حذف رکورد", callback_data="delete_list")],
-                [InlineKeyboardButton("🔄 بروزرسانی", callback_data="records"),
-                 InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")]
+                [InlineKeyboardButton(t(lang, "btn_add"), callback_data="add_start"),
+                 InlineKeyboardButton(t(lang, "btn_delete"), callback_data="delete_list")],
+                [InlineKeyboardButton(t(lang, "btn_refresh"), callback_data="records"),
+                 InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")]
             ])
             await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
 
         # ── Status ──
         elif data == "status":
-            user = await get_user_by_chat(chat_id)
             if not user:
-                await send_not_logged_in(query)
+                await send_not_logged_in(query, lang)
                 return
             record_count = await db.dns_records.count_documents({"user_id": user["id"]})
-            text = (
-                f"📊 **وضعیت اکانت**\n\n"
-                f"👤 {user['name']}\n"
-                f"📧 `{user['email']}`\n"
-                f"📋 پلن: **{user['plan']}**\n"
-                f"📝 رکوردها: **{record_count}** از {user['record_limit']}\n"
-                f"🔗 کد دعوت: `{user.get('referral_code', '-')}`\n"
-                f"👥 دعوت موفق: {user.get('referral_count', 0)}"
-            )
-            await query.edit_message_text(text, reply_markup=back_menu_kb(), parse_mode="Markdown")
+            text = t(lang, "status_title") + t(lang, "status_body",
+                name=user['name'], email=user['email'], plan=user['plan'],
+                count=record_count, limit=user['record_limit'],
+                ref_code=user.get('referral_code', '-'), ref_count=user.get('referral_count', 0))
+            await query.edit_message_text(text, reply_markup=back_menu_kb(lang), parse_mode="Markdown")
 
         # ── Referral ──
         elif data == "referral":
-            user = await get_user_by_chat(chat_id)
             if not user:
-                await send_not_logged_in(query)
+                await send_not_logged_in(query, lang)
                 return
             ref_link = f"https://{DOMAIN_NAME}/register?ref={user.get('referral_code', '')}"
-            text = (
-                f"🔗 **لینک دعوت شما:**\n\n"
-                f"`{ref_link}`\n\n"
-                f"👥 دعوت موفق: {user.get('referral_count', 0)}\n"
-                f"🎁 رکورد جایزه: {user.get('referral_bonus', 0)}\n\n"
-                f"لینک بالا را کپی و برای دوستان ارسال کنید!"
-            )
-            await query.edit_message_text(text, reply_markup=back_menu_kb(), parse_mode="Markdown")
+            text = t(lang, "referral_title") + t(lang, "referral_body",
+                link=ref_link, count=user.get('referral_count', 0), bonus=user.get('referral_bonus', 0))
+            await query.edit_message_text(text, reply_markup=back_menu_kb(lang), parse_mode="Markdown")
 
         # ── Add Record: Choose Type ──
         elif data == "add_start":
-            user = await get_user_by_chat(chat_id)
             if not user:
-                await send_not_logged_in(query)
+                await send_not_logged_in(query, lang)
                 return
             record_count = await db.dns_records.count_documents({"user_id": user["id"]})
             if record_count >= user["record_limit"]:
                 await query.edit_message_text(
-                    f"❌ به سقف رکورد ({user['record_limit']}) رسیدید.\nپلن خود را ارتقا دهید.",
-                    reply_markup=back_menu_kb()
-                )
+                    t(lang, "add_limit_reached", limit=user['record_limit']),
+                    reply_markup=back_menu_kb(lang))
                 return
             kb = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🅰️ A", callback_data="add_type_A"),
                  InlineKeyboardButton("🔤 AAAA", callback_data="add_type_AAAA"),
                  InlineKeyboardButton("🔀 CNAME", callback_data="add_type_CNAME")],
-                [InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")]
+                [InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")]
             ])
-            await query.edit_message_text("➕ **نوع رکورد را انتخاب کنید:**", reply_markup=kb, parse_mode="Markdown")
+            await query.edit_message_text(t(lang, "add_choose_type"), reply_markup=kb, parse_mode="Markdown")
 
         elif data.startswith("add_type_"):
             record_type = data.replace("add_type_", "")
             context.user_data["add_type"] = record_type
             context.user_data["add_step"] = "name"
-            examples = {
-                "A": "مثال: `mysite`  →  mysite." + DOMAIN_NAME,
-                "AAAA": "مثال: `mysite`  →  mysite." + DOMAIN_NAME,
-                "CNAME": "مثال: `blog`  →  blog." + DOMAIN_NAME,
-            }
-            kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ انصراف", callback_data="main_menu")]])
+            example = t(lang, f"add_example_{record_type}", domain=DOMAIN_NAME)
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="main_menu")]])
             await query.edit_message_text(
-                f"📝 نوع: **{record_type}**\n\n"
-                f"نام ساب‌دامین را بنویسید:\n"
-                f"{examples.get(record_type, '')}\n\n"
-                f"فقط نام را بدون دامنه تایپ کنید:",
-                reply_markup=kb, parse_mode="Markdown"
-            )
+                t(lang, "add_enter_name", type=record_type, example=example),
+                reply_markup=kb, parse_mode="Markdown")
 
         # ── Delete Record: List ──
         elif data == "delete_list":
-            user = await get_user_by_chat(chat_id)
             if not user:
-                await send_not_logged_in(query)
+                await send_not_logged_in(query, lang)
                 return
             records = await db.dns_records.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
             if not records:
-                await query.edit_message_text("📭 رکوردی برای حذف وجود ندارد.", reply_markup=back_menu_kb())
+                await query.edit_message_text(t(lang, "delete_no_records"), reply_markup=back_menu_kb(lang))
                 return
             buttons = []
             for r in records:
                 label = f"🗑 {r['record_type']} | {r['name']}.{DOMAIN_NAME}"
                 buttons.append([InlineKeyboardButton(label, callback_data=f"del_{r['id']}")])
-            buttons.append([InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")])
-            await query.edit_message_text("🗑 **کدام رکورد حذف شود؟**", reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
+            buttons.append([InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")])
+            await query.edit_message_text(t(lang, "delete_title"), reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
 
-        elif data.startswith("del_"):
+        elif data.startswith("del_") and not data.startswith("confirm_del_"):
             record_id = data[4:]
-            context.user_data["pending_delete"] = record_id
             record = await db.dns_records.find_one({"id": record_id}, {"_id": 0})
             if not record:
-                await query.edit_message_text("❌ رکورد پیدا نشد.", reply_markup=back_menu_kb())
+                await query.edit_message_text(t(lang, "delete_not_found"), reply_markup=back_menu_kb(lang))
                 return
             kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ بله، حذف شود", callback_data=f"confirm_del_{record_id}"),
-                 InlineKeyboardButton("❌ انصراف", callback_data="main_menu")]
+                [InlineKeyboardButton(t(lang, "btn_yes_delete"), callback_data=f"confirm_del_{record_id}"),
+                 InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="main_menu")]
             ])
             await query.edit_message_text(
-                f"⚠️ **آیا مطمئنید؟**\n\n"
-                f"نوع: `{record['record_type']}`\n"
-                f"نام: `{record['full_name']}`\n"
-                f"مقدار: `{record['content']}`",
-                reply_markup=kb, parse_mode="Markdown"
-            )
+                t(lang, "delete_confirm", type=record['record_type'], name=record['full_name'], value=record['content']),
+                reply_markup=kb, parse_mode="Markdown")
 
         elif data.startswith("confirm_del_"):
             record_id = data[12:]
-            user = await get_user_by_chat(chat_id)
             if not user:
-                await send_not_logged_in(query)
+                await send_not_logged_in(query, lang)
                 return
             record = await db.dns_records.find_one({"id": record_id, "user_id": user["id"]}, {"_id": 0})
             if not record:
-                await query.edit_message_text("❌ رکورد پیدا نشد.", reply_markup=back_menu_kb())
+                await query.edit_message_text(t(lang, "delete_not_found"), reply_markup=back_menu_kb(lang))
                 return
             try:
                 await cf_delete_record(record["cf_record_id"])
@@ -1247,30 +1240,27 @@ async def start_telegram_bot():
                 await db.users.update_one({"id": user["id"]}, {"$inc": {"record_count": -1}})
                 await log_activity(user["id"], user["email"], "record_deleted", f"{record['record_type']} {record['full_name']} (via Telegram)")
                 await query.edit_message_text(
-                    f"✅ رکورد حذف شد!\n\n`{record['record_type']}` {record['full_name']}",
-                    reply_markup=back_menu_kb(), parse_mode="Markdown"
-                )
+                    t(lang, "delete_success", type=record['record_type'], name=record['full_name']),
+                    reply_markup=back_menu_kb(lang), parse_mode="Markdown")
             except Exception as e:
-                await query.edit_message_text(f"❌ خطا: {str(e)}", reply_markup=back_menu_kb())
+                await query.edit_message_text(t(lang, "error", err=str(e)), reply_markup=back_menu_kb(lang))
 
         # ── Logout ──
         elif data == "logout":
-            user = await get_user_by_chat(chat_id)
             if not user:
-                await send_not_logged_in(query)
+                await send_not_logged_in(query, lang)
                 return
             kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ بله، خروج", callback_data="confirm_logout"),
-                 InlineKeyboardButton("❌ انصراف", callback_data="main_menu")]
+                [InlineKeyboardButton(t(lang, "btn_yes_logout"), callback_data="confirm_logout"),
+                 InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="main_menu")]
             ])
-            await query.edit_message_text("⚠️ آیا مطمئنید می‌خواهید خارج شوید؟", reply_markup=kb)
+            await query.edit_message_text(t(lang, "logout_confirm"), reply_markup=kb)
 
         elif data == "confirm_logout":
-            user = await get_user_by_chat(chat_id)
             if user:
                 await db.users.update_one({"id": user["id"]}, {"$unset": {"telegram_chat_id": ""}})
-            kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔑 ورود مجدد", callback_data="help_login")]])
-            await query.edit_message_text("✅ اکانت شما از ربات قطع شد.", reply_markup=kb)
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_relogin"), callback_data="help_login")]])
+            await query.edit_message_text(t(lang, "logout_success"), reply_markup=kb)
 
     # ── Message Handler (for add record flow) ────────────────
     async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
