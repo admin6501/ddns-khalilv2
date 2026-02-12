@@ -30,6 +30,9 @@ CF_ZONE_ID = os.environ.get('CLOUDFLARE_ZONE_ID', '')
 CF_API_BASE = "https://api.cloudflare.com/client/v4"
 DOMAIN_NAME = os.environ.get('DOMAIN_NAME', 'example.com')
 
+# DNS zone domain (auto-detected from Cloudflare, fallback to DOMAIN_NAME)
+CF_ZONE_DOMAIN = DOMAIN_NAME
+
 # JWT config
 JWT_SECRET = os.environ.get('JWT_SECRET', 'fallback_secret')
 JWT_ALGORITHM = "HS256"
