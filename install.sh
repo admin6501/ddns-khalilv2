@@ -945,8 +945,26 @@ with open('build/index.html','w') as f: f.write(h)
   success "Frontend rebuilt"
 
   info "Restarting services..."
-  systemctl restart ${SERVICE_NAME} nginx
+  clear_bot_lock
+  systemctl restart ${SERVICE_NAME}
+  sleep 5
+  systemctl restart nginx
   sleep 2
+
+  # Verify bot status
+  if systemctl is-active --quiet ${SERVICE_NAME}; then
+    success "Backend running"
+    # Check if Telegram bot started
+    local bot_status=$(curl -s --max-time 5 http://127.0.0.1:8001/api/telegram/status 2>/dev/null)
+    if echo "$bot_status" | grep -q '"running"' 2>/dev/null; then
+      success "Telegram bot is active"
+    else
+      info "Telegram bot status: ${bot_status:-unknown}"
+    fi
+  else
+    warn "Backend may need attention"
+  fi
+
   success "Services restarted"
 
   echo ""
