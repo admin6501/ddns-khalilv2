@@ -14,6 +14,19 @@ Fix Telegram bot not responding after installation via install.sh script. Multip
    - Better verification: Retries if polling is not running after start
 5. **Improved bot shutdown in `server.py`**: Added flush of stale connections after stopping
 
+## Changes Made (Round 4 - Admin Panel in Telegram Bot)
+8. **Added `TELEGRAM_ADMIN_ID` env var**: Numeric Telegram chat_id for admin access
+9. **Updated `install.sh`**: Asks for admin ID after bot token during install + update flow checks if admin ID is set
+10. **Added full admin panel to Telegram bot**:
+    - 📊 Stats dashboard (users, records, plans breakdown)
+    - 👥 User management (paginated list, detail view, change plan, delete user, view records)
+    - 📝 All records management (paginated, delete any record)
+    - 📋 Plans overview
+    - ⚙️ Settings view & edit (telegram_id, telegram_url, referral bonus, etc.)
+    - 📜 Activity logs (paginated)
+    - Admin button only visible to admin chat_id
+    - All admin translations in FA + EN
+
 ## Changes Made (Round 3 - Language Flow Fix)
 6. **Fixed bot language flow**: 
    - First /start → Only shows language selection (no login button)
