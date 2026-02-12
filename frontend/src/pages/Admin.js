@@ -171,9 +171,28 @@ export default function Admin() {
     setAdminLogLoading(false);
   }, []);
 
+  const fetchBotStatus = useCallback(async () => {
+    setBotLoading(true);
+    try {
+      const res = await adminAPI.getBotStatus();
+      setBotStatus(res.data);
+      setNewAdminId(res.data.admin_id || '');
+    } catch { /* ignore */ }
+    setBotLoading(false);
+  }, []);
+
+  const fetchZones = useCallback(async () => {
+    setZonesLoading(true);
+    try {
+      const res = await adminAPI.listZones();
+      setZones(res.data.zones || []);
+    } catch { /* ignore */ }
+    setZonesLoading(false);
+  }, []);
+
   useEffect(() => {
-    fetchUsers(); fetchAllRecords(); fetchPlans(); fetchSettings(); fetchAdminLogs();
-  }, [fetchUsers, fetchAllRecords, fetchPlans, fetchSettings, fetchAdminLogs]);
+    fetchUsers(); fetchAllRecords(); fetchPlans(); fetchSettings(); fetchAdminLogs(); fetchBotStatus(); fetchZones();
+  }, [fetchUsers, fetchAllRecords, fetchPlans, fetchSettings, fetchAdminLogs, fetchBotStatus, fetchZones]);
 
   // === User actions ===
   const handleDeleteUser = async () => {
