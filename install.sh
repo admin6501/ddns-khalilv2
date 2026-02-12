@@ -905,7 +905,17 @@ do_update() {
   info "Rebuilding frontend..."
   cd "$INSTALL_DIR/frontend"
   yarn install 2>/dev/null
+
+  # Ensure enough memory (swap) for build on low-RAM servers
+  ensure_swap
+
+  export NODE_OPTIONS="--max-old-space-size=3072"
+  export GENERATE_SOURCEMAP=false
   yarn build 2>/dev/null || yarn build
+  unset NODE_OPTIONS GENERATE_SOURCEMAP
+
+  # Remove temporary swap
+  cleanup_swap
 
   # Clean build
   if [[ -f build/index.html ]]; then
