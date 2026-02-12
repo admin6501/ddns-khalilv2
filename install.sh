@@ -296,12 +296,20 @@ collect_variables() {
   JWT_SECRET=$(openssl rand -hex 32 2>/dev/null || date +%s%N | sha256sum | head -c 64)
 
   echo ""
+  echo -e "  ${B}Telegram Bot ${D}(optional)${N}"
+  TELEGRAM_BOT_TOKEN=""
+  confirm "Enable Telegram bot? y/N" "N" && {
+    clean_read TELEGRAM_BOT_TOKEN "Bot token (from @BotFather): "
+  }
+
+  echo ""
   draw_line
   echo -e "  ${B}Review:${N}"
   echo -e "    Domain:      ${G}$DOMAIN${N}"
   echo -e "    Admin:       ${G}$ADMIN_EMAIL${N}"
   echo -e "    MongoDB:     ${G}$MONGO_URL${N} / ${G}$DB_NAME${N}"
   echo -e "    Path:        ${G}$INSTALL_DIR${N}"
+  [[ -n "$TELEGRAM_BOT_TOKEN" ]] && echo -e "    Telegram:    ${G}Enabled${N}" || echo -e "    Telegram:    ${D}Disabled${N}"
   draw_line
   echo ""
   confirm "Proceed? Y/n" "Y" || fatal "Cancelled."
