@@ -1255,20 +1255,55 @@ async def start_telegram_bot():
             kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_relogin"), callback_data="help_login")]])
             await query.edit_message_text(t(lang, "logout_success"), reply_markup=kb)
 
-    # ── Message Handler (for add record flow) ────────────────
+    # ── Message Handler (for login & add record flows) ────────
     async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        chat_id = update.effective_chat.id
+        text = update.message.text.strip()
+        lang = context.user_data.get("lang", "fa")
+
+        # ── Login Flow ──
+        login_step = context.user_data.get("login_step")
+        if login_step == "email":
+            context.user_data["login_email"] = text
+            context.user_data["login_step"] = "password"
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="main_menu")]])
+            await update.message.reply_text(t(lang, "login_enter_password"), reply_markup=kb)
+            return
+
+        if login_step == "password":
+            email = context.user_data.get("login_email", "")
+            password = text
+            context.user_data.pop("login_step", None)
+            context.user_data.pop("login_email", None)
+
+            user = await db.users.find_one({"email": email}, {"_id": 0})
+            if not user or not verify_password(password, user["password_hash"]):
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t(lang, "btn_login"), callback_data="help_login")],
+                    [InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")]
+                ])
+                await update.message.reply_text(t(lang, "login_fail"), reply_markup=kb)
+                return
+
+            bot_lang = context.user_data.get("lang", "fa")
+            await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_chat_id": str(chat_id), "telegram_lang": bot_lang}})
+            await log_activity(user["id"], user["email"], "telegram_linked", f"Telegram linked: {chat_id}")
+            await update.message.reply_text(
+                t(bot_lang, "login_success", name=user['name'], email=email),
+                reply_markup=main_menu_kb(bot_lang)
+            )
+            return
+
+        # ── Add Record Flow ──
         if not context.user_data.get("add_step"):
             return
-        chat_id = update.effective_chat.id
+
         user = await get_user_by_chat(chat_id)
-        lang = get_lang(user) if user else context.user_data.get("lang", "fa")
+        lang = get_lang(user) if user else lang
         if not user:
             await send_not_logged_in(update, lang)
             context.user_data.clear()
             return
-
-        text = update.message.text.strip()
-        step = context.user_data.get("add_step")
 
         if step == "name":
             name = text.lower().replace(" ", "")
