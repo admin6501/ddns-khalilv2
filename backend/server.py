@@ -1352,7 +1352,7 @@ async def start_telegram_bot():
             content = text.strip()
             record_type = context.user_data["add_type"]
             name = context.user_data["add_name"]
-            full_name = f"{name}.{DOMAIN_NAME}"
+            full_name = f"{name}.{CF_ZONE_DOMAIN}"
             context.user_data.clear()
 
             existing = await db.dns_records.find_one({"full_name": full_name, "record_type": record_type})
