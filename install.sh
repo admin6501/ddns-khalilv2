@@ -124,6 +124,15 @@ clear_bot_lock() {
   elif command -v mongo &>/dev/null; then
     mongo --quiet --eval "db.getSiblingDB('${LOCK_DB}').bot_lock.drop()" 2>/dev/null
   fi
+
+  # Kill any stale uvicorn processes that might hold Telegram polling connections
+  local SVC_PID=$(systemctl show -p MainPID --value ${SERVICE_NAME} 2>/dev/null)
+  local stale_pids=$(pgrep -f "uvicorn.*server:app" 2>/dev/null | grep -v "^${SVC_PID}$" 2>/dev/null)
+  if [[ -n "$stale_pids" ]]; then
+    info "Killing stale uvicorn processes: $stale_pids"
+    echo "$stale_pids" | xargs kill -9 2>/dev/null
+    sleep 1
+  fi
 }
 
 # ─── OS Detection ────────────────────────────────────────────────────────────
