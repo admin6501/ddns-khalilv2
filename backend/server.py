@@ -731,8 +731,12 @@ async def admin_get_settings(admin: dict = Depends(get_admin_user)):
             "telegram_url": "",
             "contact_message_en": "Contact us on Telegram for pricing",
             "contact_message_fa": "برای استعلام قیمت در تلگرام تماس بگیرید",
-            "referral_bonus_per_invite": 1
+            "referral_bonus_per_invite": 1,
+            "default_free_records": PLAN_LIMITS["free"]
         }
+    # Ensure default_free_records exists
+    if "default_free_records" not in settings:
+        settings["default_free_records"] = PLAN_LIMITS["free"]
     return settings
 
 @api_router.put("/admin/settings")
