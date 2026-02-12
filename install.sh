@@ -509,7 +509,7 @@ Type=simple
 User=root
 WorkingDirectory=${INSTALL_DIR}/backend
 Environment=PATH=${INSTALL_DIR}/backend/venv/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=${INSTALL_DIR}/backend/venv/bin/uvicorn server:app --host 127.0.0.1 --port 8001 --workers 2
+ExecStart=${INSTALL_DIR}/backend/venv/bin/uvicorn server:app --host 127.0.0.1 --port 8001 --workers 1
 Restart=always
 RestartSec=5
 
