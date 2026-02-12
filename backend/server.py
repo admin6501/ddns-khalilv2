@@ -1386,12 +1386,28 @@ async def start_telegram_bot():
             except Exception as e:
                 await update.message.reply_text(t(lang, "error", err=str(e)), reply_markup=back_menu_kb(lang))
 
+    # ── Global Error Handler ────────────────────────────────
+    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+        """Log errors caused by handlers."""
+        logger.error(f"Telegram bot error: {context.error}", exc_info=context.error)
+        # Try to notify user
+        try:
+            if update and hasattr(update, 'effective_chat') and update.effective_chat:
+                chat_id = update.effective_chat.id
+                user = await get_user_by_chat(chat_id)
+                lang = get_lang(user) if user else "fa"
+                error_msg = t(lang, "error", err="Internal error. Please try /start again.")
+                await context.bot.send_message(chat_id=chat_id, text=error_msg)
+        except Exception:
+            pass
+
     try:
         telegram_bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
         telegram_bot_app.add_handler(CommandHandler("start", cmd_start))
         telegram_bot_app.add_handler(CommandHandler("login", cmd_login))
         telegram_bot_app.add_handler(CallbackQueryHandler(callback_handler))
         telegram_bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+        telegram_bot_app.add_error_handler(error_handler)
 
         commands = [
             BotCommand("start", "منوی اصلی / Main Menu"),
@@ -1400,10 +1416,14 @@ async def start_telegram_bot():
         await telegram_bot_app.initialize()
         await telegram_bot_app.bot.set_my_commands(commands)
         await telegram_bot_app.start()
-        await telegram_bot_app.updater.start_polling(drop_pending_updates=True)
-        logger.info(f"Telegram bot started: @{(await telegram_bot_app.bot.get_me()).username}")
+        await telegram_bot_app.updater.start_polling(
+            drop_pending_updates=True,
+            allowed_updates=Update.ALL_TYPES
+        )
+        bot_info = await telegram_bot_app.bot.get_me()
+        logger.info(f"Telegram bot started successfully: @{bot_info.username} (ID: {bot_info.id})")
     except Exception as e:
-        logger.error(f"Telegram bot failed to start: {e}")
+        logger.error(f"Telegram bot failed to start: {e}", exc_info=True)
         telegram_bot_app = None
 
 async def stop_telegram_bot():
