@@ -281,7 +281,7 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">{lang === 'fa' ? 'دامنه' : 'Domain'}</p>
-                <p className="text-lg font-bold font-mono">{DOMAIN}</p>
+                <p className="text-lg font-bold font-mono">{DNS_DOMAIN}</p>
               </div>
             </div>
           </div>
