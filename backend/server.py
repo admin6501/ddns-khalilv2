@@ -2080,8 +2080,9 @@ async def start_telegram_bot():
                         await update.message.reply_text("❌ Must be a number", reply_markup=admin_back_kb(lang))
                         return
                 await db.settings.update_one({"key": "site_settings"}, {"$set": {field: value}}, upsert=True)
+                safe_field = field.replace("_", " ")
                 await update.message.reply_text(
-                    t(lang, "admin_setting_updated", field=field),
+                    t(lang, "admin_setting_updated", field=safe_field),
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙", callback_data="adm_settings")]]),
                     parse_mode="Markdown"
                 )
