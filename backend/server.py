@@ -1220,7 +1220,15 @@ async def start_telegram_bot():
         # ── Main Menu ──
         if data == "main_menu":
             if not user:
-                await send_not_logged_in(query, lang)
+                # Not logged in → show login button
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t(lang, "btn_login"), callback_data="help_login")],
+                    [InlineKeyboardButton(t(lang, "btn_lang"), callback_data="toggle_lang_prelogin")]
+                ])
+                await query.edit_message_text(
+                    t(lang, "welcome_new", domain=CF_ZONE_DOMAIN),
+                    reply_markup=kb
+                )
                 return
             await query.edit_message_text(
                 t(lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
