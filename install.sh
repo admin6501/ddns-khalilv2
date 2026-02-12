@@ -660,7 +660,9 @@ NGXEOF
   nginx -t 2>&1 && systemctl reload nginx
 
   sed -i "s|CORS_ORIGINS=.*|CORS_ORIGINS=https://${DOMAIN}|" "$INSTALL_DIR/backend/.env"
+  clear_bot_lock
   systemctl restart ${SERVICE_NAME}
+  sleep 5
   success "SSL + SPA routing configured"
 }
 
