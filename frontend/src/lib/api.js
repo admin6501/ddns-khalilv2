@@ -79,4 +79,15 @@ export const contactAPI = {
   getContactInfo: () => api.get('/settings/contact'),
 };
 
+// Activity Logs
+export const activityAPI = {
+  getLogs: (page = 1, limit = 20) => api.get(`/activity/logs?page=${page}&limit=${limit}`),
+  getAdminLogs: (page = 1, limit = 50, userId = '', action = '') => {
+    let url = `/admin/activity/logs?page=${page}&limit=${limit}`;
+    if (userId) url += `&user_id=${userId}`;
+    if (action) url += `&action=${action}`;
+    return api.get(url);
+  },
+};
+
 export default api;
