@@ -767,6 +767,190 @@ async def get_site_config():
         "referral_bonus_per_invite": (settings or {}).get("referral_bonus_per_invite", 1),
     }
 
+# ============== ADMIN: BOT MANAGEMENT ==============
+
+@api_router.get("/admin/bot/status")
+async def admin_bot_status(admin: dict = Depends(get_admin_user)):
+    """Get Telegram bot status, masked token, and admin ID."""
+    token = TELEGRAM_BOT_TOKEN
+    masked_token = ""
+    if token:
+        masked_token = token[:10] + "..." + token[-4:] if len(token) > 14 else "***"
+    bot_running = False
+    bot_username = ""
+    if telegram_bot_app:
+        try:
+            bot_running = telegram_bot_app.running
+            if bot_running:
+                info = await telegram_bot_app.bot.get_me()
+                bot_username = f"@{info.username}"
+        except Exception:
+            pass
+    return {
+        "has_token": bool(token),
+        "masked_token": masked_token,
+        "admin_id": TELEGRAM_ADMIN_ID,
+        "bot_running": bot_running,
+        "bot_username": bot_username,
+    }
+
+@api_router.put("/admin/bot/token")
+async def admin_update_bot_token(body: dict, admin: dict = Depends(get_admin_user)):
+    """Update bot token, save to .env, and restart bot."""
+    global TELEGRAM_BOT_TOKEN
+    new_token = body.get("token", "").strip()
+    # Validate token format (roughly)
+    if new_token and ":" not in new_token:
+        raise HTTPException(status_code=400, detail="Invalid token format. Should be like 123456:ABC-DEF...")
+    # Stop current bot
+    await stop_telegram_bot()
+    # Update in-memory
+    TELEGRAM_BOT_TOKEN = new_token
+    os.environ["TELEGRAM_BOT_TOKEN"] = new_token
+    # Update .env file
+    _update_env_file("TELEGRAM_BOT_TOKEN", new_token)
+    # Start new bot if token provided
+    if new_token:
+        import asyncio
+        asyncio.create_task(_safe_start_bot())
+    return {"success": True, "has_token": bool(new_token)}
+
+@api_router.put("/admin/bot/admin-id")
+async def admin_update_bot_admin_id(body: dict, admin: dict = Depends(get_admin_user)):
+    """Update Telegram admin ID."""
+    global TELEGRAM_ADMIN_ID
+    new_id = str(body.get("admin_id", "")).strip()
+    TELEGRAM_ADMIN_ID = new_id
+    os.environ["TELEGRAM_ADMIN_ID"] = new_id
+    _update_env_file("TELEGRAM_ADMIN_ID", new_id)
+    return {"success": True, "admin_id": new_id}
+
+@api_router.post("/admin/bot/stop")
+async def admin_stop_bot(admin: dict = Depends(get_admin_user)):
+    """Stop the Telegram bot."""
+    if not telegram_bot_app:
+        raise HTTPException(status_code=400, detail="Bot is not running")
+    await stop_telegram_bot()
+    return {"success": True, "bot_running": False}
+
+@api_router.post("/admin/bot/start")
+async def admin_start_bot(admin: dict = Depends(get_admin_user)):
+    """Start/restart the Telegram bot."""
+    if not TELEGRAM_BOT_TOKEN:
+        raise HTTPException(status_code=400, detail="No bot token configured")
+    import asyncio
+    await stop_telegram_bot()
+    asyncio.create_task(_safe_start_bot())
+    return {"success": True, "message": "Bot starting..."}
+
+def _update_env_file(key: str, value: str):
+    """Update a key in the backend .env file."""
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if not os.path.exists(env_path):
+        return
+    lines = []
+    found = False
+    with open(env_path, "r") as f:
+        for line in f:
+            if line.startswith(f"{key}="):
+                lines.append(f"{key}={value}\n")
+                found = True
+            else:
+                lines.append(line)
+    if not found:
+        lines.append(f"{key}={value}\n")
+    with open(env_path, "w") as f:
+        f.writelines(lines)
+
+async def _safe_start_bot():
+    """Safely start the bot (used from API endpoints)."""
+    import asyncio
+    await asyncio.sleep(2)
+    try:
+        await start_telegram_bot()
+    except Exception as e:
+        logger.error(f"Failed to start bot from API: {e}", exc_info=True)
+
+# ============== ADMIN: ZONES MANAGEMENT ==============
+
+@api_router.get("/admin/zones")
+async def admin_list_zones(admin: dict = Depends(get_admin_user)):
+    """List all Cloudflare zones (primary from env + additional from DB)."""
+    zones = []
+    # Primary zone from env
+    if CF_ZONE_ID:
+        zones.append({
+            "id": CF_ZONE_ID,
+            "domain": CF_ZONE_DOMAIN,
+            "is_primary": True,
+            "status": "active",
+        })
+    # Additional zones from DB
+    db_zones = await db.cf_zones.find({}, {"_id": 0}).to_list(50)
+    for z in db_zones:
+        if z.get("zone_id") != CF_ZONE_ID:
+            zones.append({
+                "id": z["zone_id"],
+                "domain": z.get("domain", ""),
+                "is_primary": False,
+                "status": z.get("status", "active"),
+            })
+    return {"zones": zones}
+
+@api_router.post("/admin/zones")
+async def admin_add_zone(body: dict, admin: dict = Depends(get_admin_user)):
+    """Add a new Cloudflare zone. Validates with CF API."""
+    zone_id = body.get("zone_id", "").strip()
+    api_token = body.get("api_token", "").strip() or CF_API_TOKEN
+    if not zone_id:
+        raise HTTPException(status_code=400, detail="Zone ID is required")
+    if not api_token:
+        raise HTTPException(status_code=400, detail="API token is required")
+    # Check if already exists
+    existing = await db.cf_zones.find_one({"zone_id": zone_id})
+    if existing or zone_id == CF_ZONE_ID:
+        raise HTTPException(status_code=400, detail="Zone already exists")
+    # Verify zone with Cloudflare
+    try:
+        async with httpx.AsyncClient() as hc:
+            resp = await hc.get(
+                f"{CF_API_BASE}/zones/{zone_id}",
+                headers={"Authorization": f"Bearer {api_token}"},
+                timeout=10
+            )
+            data = resp.json()
+            if not data.get("success"):
+                errors = data.get("errors", [])
+                err_msg = errors[0].get("message", "Invalid zone") if errors else "Invalid zone ID or token"
+                raise HTTPException(status_code=400, detail=err_msg)
+            domain = data["result"]["name"]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to verify zone: {str(e)}")
+    # Save to DB
+    zone_doc = {
+        "zone_id": zone_id,
+        "domain": domain,
+        "api_token": api_token,
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.cf_zones.insert_one(zone_doc)
+    await log_activity(admin["id"], admin["email"], "zone_added", f"Zone added: {domain} ({zone_id})")
+    return {"success": True, "zone": {"id": zone_id, "domain": domain, "is_primary": False, "status": "active"}}
+
+@api_router.delete("/admin/zones/{zone_id}")
+async def admin_remove_zone(zone_id: str, admin: dict = Depends(get_admin_user)):
+    """Remove a Cloudflare zone (cannot remove primary)."""
+    if zone_id == CF_ZONE_ID:
+        raise HTTPException(status_code=400, detail="Cannot remove primary zone. Change it from server configuration.")
+    result = await db.cf_zones.delete_one({"zone_id": zone_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Zone not found")
+    await log_activity(admin["id"], admin["email"], "zone_removed", f"Zone removed: {zone_id}")
+    return {"success": True}
+
 # Public endpoint for contact info (legacy)
 @api_router.get("/settings/contact")
 async def get_contact_info():
