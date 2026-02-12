@@ -543,8 +543,9 @@ EOF
 
   systemctl daemon-reload
   systemctl enable ${SERVICE_NAME} 2>/dev/null
+  clear_bot_lock
   systemctl restart ${SERVICE_NAME}
-  sleep 3
+  sleep 5
   systemctl is-active --quiet ${SERVICE_NAME} && success "Backend service running" || warn "Backend may need attention"
 }
 
