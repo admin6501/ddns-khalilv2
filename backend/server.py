@@ -1423,19 +1423,6 @@ async def start_telegram_bot():
             pass
 
     try:
-        # Acquire bot lock - only one worker/process should run the bot
-        import os as _os
-        my_pid = _os.getpid()
-        lock = await db.bot_lock.find_one_and_update(
-            {"_id": "telegram_bot", "$or": [{"active": False}, {"active": {"$exists": False}}]},
-            {"$set": {"active": True, "pid": my_pid, "started_at": datetime.utcnow()}},
-            upsert=True,
-            return_document=True
-        )
-        if lock and lock.get("pid") != my_pid:
-            logger.info(f"Telegram bot: another worker (pid={lock.get('pid')}) is running the bot, skipping in this worker.")
-            return
-
         telegram_bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
         telegram_bot_app.add_handler(CommandHandler("start", cmd_start))
         telegram_bot_app.add_handler(CommandHandler("login", cmd_login))
@@ -1463,8 +1450,6 @@ async def start_telegram_bot():
         logger.info(f"Telegram bot started successfully: @{bot_info.username} (ID: {bot_info.id})")
     except Exception as e:
         logger.error(f"Telegram bot failed to start: {e}", exc_info=True)
-        # Release lock on failure
-        await db.bot_lock.update_one({"_id": "telegram_bot"}, {"$set": {"active": False}})
         telegram_bot_app = None
 
 async def stop_telegram_bot():
