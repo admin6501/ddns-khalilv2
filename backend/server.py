@@ -1868,6 +1868,7 @@ async def startup():
     await db.activity_logs.create_index("user_id")
     await db.activity_logs.create_index("created_at")
     await db.users.create_index("telegram_chat_id", sparse=True)
+    await db.telegram_prefs.create_index("chat_id", unique=True)
     
     # Seed admin user if not exists
     admin_email = os.environ.get('ADMIN_EMAIL', f'admin@{DOMAIN_NAME}')
