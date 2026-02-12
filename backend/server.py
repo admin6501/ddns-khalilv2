@@ -509,6 +509,9 @@ async def delete_record(record_id: str, current_user: dict = Depends(get_current
         {"$inc": {"record_count": -1}}
     )
     
+    await log_activity(current_user["id"], current_user["email"], "record_deleted",
+                       f"{record['record_type']} {record['full_name']}")
+    
     return {"message": "Record deleted successfully"}
 
 # ============== ADMIN ROUTES ==============
