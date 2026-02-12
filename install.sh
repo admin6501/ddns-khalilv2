@@ -727,6 +727,7 @@ do_restart() {
   sleep 1
 
   info "Restarting Backend..."
+  clear_bot_lock
   systemctl restart ${SERVICE_NAME} 2>/dev/null
   sleep 2
 
