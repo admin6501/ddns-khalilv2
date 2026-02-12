@@ -1267,7 +1267,7 @@ async def start_telegram_bot():
                 # Logged in → show main menu
                 await query.edit_message_text(
                     t(new_lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
-                    reply_markup=main_menu_kb(new_lang)
+                    reply_markup=main_menu_kb(new_lang, chat_id)
                 )
             else:
                 # Not logged in → show welcome + login button
@@ -1304,7 +1304,7 @@ async def start_telegram_bot():
             if user:
                 await query.edit_message_text(
                     t(new_lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
-                    reply_markup=main_menu_kb(new_lang)
+                    reply_markup=main_menu_kb(new_lang, chat_id)
                 )
             else:
                 kb = InlineKeyboardMarkup([
@@ -1332,7 +1332,7 @@ async def start_telegram_bot():
                 return
             await query.edit_message_text(
                 t(lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
-                reply_markup=main_menu_kb(lang)
+                reply_markup=main_menu_kb(lang, chat_id)
             )
 
         # ── Help Login (start login flow) ──
