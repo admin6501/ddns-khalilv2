@@ -260,9 +260,17 @@ async def cf_delete_record(cf_record_id: str):
 
 @api_router.post("/auth/register")
 async def register(user_data: UserRegister):
+    # Only allow Gmail addresses
+    if not user_data.email.lower().endswith("@gmail.com"):
+        raise HTTPException(status_code=400, detail="Only Gmail addresses (@gmail.com) are allowed for registration.")
+    
     existing = await db.users.find_one({"email": user_data.email}, {"_id": 0})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Get default free records from settings
+    settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
+    default_free = (settings or {}).get("default_free_records", PLAN_LIMITS["free"])
     
     # Generate unique referral code
     ref_code = generate_referral_code()
