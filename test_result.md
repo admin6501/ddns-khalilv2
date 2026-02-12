@@ -14,6 +14,13 @@ Fix Telegram bot not responding after installation via install.sh script. Multip
    - Better verification: Retries if polling is not running after start
 5. **Improved bot shutdown in `server.py`**: Added flush of stale connections after stopping
 
+## Changes Made (Round 5 - Admin Panel Bot & Zones Management)
+11. **Added Bot Management APIs**: GET/PUT bot token, GET/PUT admin ID, POST start/stop bot
+12. **Added Zones Management APIs**: GET list zones, POST add zone (validates with CF API), DELETE remove zone
+13. **Updated Admin Frontend**: New Settings tab with 3 sections: Telegram Bot, Cloudflare Zones, Site Settings
+14. **Updated install.sh**: Asks for admin ID after bot token, update flow checks for admin ID
+15. **Updated i18n**: Full FA+EN translations for bot and zones management
+
 ## Changes Made (Round 4 - Admin Panel in Telegram Bot)
 8. **Added `TELEGRAM_ADMIN_ID` env var**: Numeric Telegram chat_id for admin access
 9. **Updated `install.sh`**: Asks for admin ID after bot token during install + update flow checks if admin ID is set
