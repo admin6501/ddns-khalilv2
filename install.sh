@@ -696,6 +696,7 @@ do_stop() {
 
   info "Stopping Backend..."
   systemctl stop ${SERVICE_NAME} 2>/dev/null
+  clear_bot_lock
   success "Backend stopped"
 
   info "Stopping Nginx..."
