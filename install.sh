@@ -469,8 +469,17 @@ EOF
   yarn install 2>/dev/null || yarn install || fatal "Frontend deps failed"
   success "Dependencies installed"
 
+  # Ensure enough memory (swap) for build on low-RAM servers
+  ensure_swap
+
   info "Building production bundle..."
-  yarn build 2>/dev/null || yarn build || fatal "Build failed"
+  export NODE_OPTIONS="--max-old-space-size=3072"
+  export GENERATE_SOURCEMAP=false
+  yarn build 2>/dev/null || yarn build || { cleanup_swap; fatal "Build failed"; }
+  unset NODE_OPTIONS GENERATE_SOURCEMAP
+
+  # Remove temporary swap
+  cleanup_swap
 
   # Clean build output from Emergent traces
   if [[ -f build/index.html ]]; then
