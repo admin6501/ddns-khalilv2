@@ -1690,14 +1690,14 @@ async def start_telegram_bot():
         # ══════════════════════════════════════════════════════════
 
         elif data == "adm_panel":
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 await query.edit_message_text(t(lang, "admin_not_authorized"), reply_markup=back_menu_kb(lang))
                 return
             await query.edit_message_text(t(lang, "admin_title"), reply_markup=admin_menu_kb(lang), parse_mode="Markdown")
 
         # ── Admin Stats ──
         elif data == "adm_stats":
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             total_users = await db.users.count_documents({})
             total_records = await db.dns_records.count_documents({})
@@ -1713,7 +1713,7 @@ async def start_telegram_bot():
 
         # ── Admin Users List (paginated) ──
         elif data.startswith("adm_users_"):
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             page = int(data.split("_")[-1])
             per_page = 8
@@ -1742,7 +1742,7 @@ async def start_telegram_bot():
 
         # ── Admin User Detail ──
         elif data.startswith("adm_user_") and not data.startswith("adm_user_plan_") and not data.startswith("adm_user_del_") and not data.startswith("adm_user_recs_"):
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             uid = data[9:]
             target = await db.users.find_one({"id": uid}, {"_id": 0, "password_hash": 0})
@@ -1766,7 +1766,7 @@ async def start_telegram_bot():
 
         # ── Admin Change User Plan ──
         elif data.startswith("adm_user_plan_") and not data.startswith("adm_user_plan_set_"):
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             uid = data[14:]
             plans_list = await db.plans.find({}, {"_id": 0}).sort("sort_order", 1).to_list(50)
@@ -1777,7 +1777,7 @@ async def start_telegram_bot():
             await query.edit_message_text(t(lang, "admin_select_plan"), reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
 
         elif data.startswith("adm_user_plan_set_"):
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             parts = data[18:].rsplit("_", 1)
             uid, plan_id = parts[0], parts[1]
@@ -1799,7 +1799,7 @@ async def start_telegram_bot():
 
         # ── Admin Delete User (confirm) ──
         elif data.startswith("adm_user_del_") and not data.startswith("adm_user_del_yes_"):
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             uid = data[13:]
             target = await db.users.find_one({"id": uid}, {"_id": 0, "password_hash": 0})
@@ -1815,7 +1815,7 @@ async def start_telegram_bot():
             await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
 
         elif data.startswith("adm_user_del_yes_"):
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             uid = data[17:]
             target = await db.users.find_one({"id": uid}, {"_id": 0})
@@ -1840,7 +1840,7 @@ async def start_telegram_bot():
 
         # ── Admin User Records ──
         elif data.startswith("adm_user_recs_"):
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             uid = data[14:]
             target = await db.users.find_one({"id": uid}, {"_id": 0, "password_hash": 0})
@@ -1863,7 +1863,7 @@ async def start_telegram_bot():
 
         # ── Admin All Records (paginated) ──
         elif data.startswith("adm_records_"):
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             page = int(data.split("_")[-1])
             per_page = 8
@@ -1896,7 +1896,7 @@ async def start_telegram_bot():
 
         # ── Admin Delete Record (confirm + execute) ──
         elif data.startswith("adm_rec_del_") and not data.startswith("adm_rec_del_yes_"):
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             rid = data[12:]
             record = await db.dns_records.find_one({"id": rid}, {"_id": 0})
@@ -1914,7 +1914,7 @@ async def start_telegram_bot():
             await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
 
         elif data.startswith("adm_rec_del_yes_"):
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             rid = data[16:]
             record = await db.dns_records.find_one({"id": rid}, {"_id": 0})
@@ -1936,7 +1936,7 @@ async def start_telegram_bot():
 
         # ── Admin Plans ──
         elif data == "adm_plans":
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             plans_list = await db.plans.find({}, {"_id": 0}).sort("sort_order", 1).to_list(50)
             if not plans_list:
@@ -1950,7 +1950,7 @@ async def start_telegram_bot():
 
         # ── Admin Settings ──
         elif data == "adm_settings":
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
             if not settings:
@@ -1969,7 +1969,7 @@ async def start_telegram_bot():
             await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
 
         elif data == "adm_settings_edit":
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             fields = [
                 ("telegram_id", "📱 Telegram ID"),
@@ -1986,7 +1986,7 @@ async def start_telegram_bot():
             await query.edit_message_text(t(lang, "admin_setting_choose"), reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
 
         elif data.startswith("adm_set_"):
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             field = data[8:]
             context.user_data["adm_edit_field"] = field
@@ -1999,7 +1999,7 @@ async def start_telegram_bot():
 
         # ── Admin Activity Logs (paginated) ──
         elif data.startswith("adm_logs_"):
-            if not is_admin_chat(chat_id):
+            if not is_admin_user(user, chat_id):
                 return
             page = int(data.split("_")[-1])
             per_page = 8
