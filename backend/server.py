@@ -1085,21 +1085,42 @@ async def start_telegram_bot():
     # ── /start ───────────────────────────────────────────────
     async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
-            context.user_data.clear()
+            # Only clear flow-specific data, preserve language
+            context.user_data.pop("login_step", None)
+            context.user_data.pop("login_email", None)
+            context.user_data.pop("add_step", None)
+            context.user_data.pop("add_type", None)
+            context.user_data.pop("add_name", None)
+
             chat_id = update.effective_chat.id
             logger.info(f"Telegram /start from chat_id={chat_id}")
             user = await get_user_by_chat(chat_id)
-            lang = get_lang(user)
+            lang = await get_chat_lang(chat_id, user)
+
             if user:
+                # Logged-in user → main menu (lang is always set)
+                if not lang:
+                    lang = "fa"
+                context.user_data["lang"] = lang
                 await update.message.reply_text(
                     t(lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
                     reply_markup=main_menu_kb(lang)
                 )
+            elif lang is None:
+                # New user, no language chosen yet → show ONLY language selection
+                await update.message.reply_text(
+                    "🌐 لطفاً زبان خود را انتخاب کنید\n🌐 Please select your language:",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🇮🇷 فارسی", callback_data="set_lang_fa"),
+                         InlineKeyboardButton("🇬🇧 English", callback_data="set_lang_en")]
+                    ])
+                )
             else:
+                # Language already chosen, not logged in → show welcome + login
+                context.user_data["lang"] = lang
                 kb = InlineKeyboardMarkup([
                     [InlineKeyboardButton(t(lang, "btn_login"), callback_data="help_login")],
-                    [InlineKeyboardButton("🌐 English", callback_data="set_lang_en"),
-                     InlineKeyboardButton("🌐 فارسی", callback_data="set_lang_fa")]
+                    [InlineKeyboardButton(t(lang, "btn_lang"), callback_data="toggle_lang_prelogin")]
                 ])
                 await update.message.reply_text(
                     t(lang, "welcome_new", domain=CF_ZONE_DOMAIN),
