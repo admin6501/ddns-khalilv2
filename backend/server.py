@@ -1394,7 +1394,7 @@ async def start_telegram_bot():
                 context.user_data["lang"] = lang
                 await update.message.reply_text(
                     t(lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
-                    reply_markup=main_menu_kb(lang, chat_id)
+                    reply_markup=main_menu_kb(lang, chat_id, user)
                 )
             elif lang is None:
                 # New user, no language chosen yet → show ONLY language selection
