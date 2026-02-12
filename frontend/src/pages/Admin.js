@@ -25,7 +25,7 @@ import {
 } from '../components/ui/table';
 import {
   Users, Server, Settings, Trash2, Eye, ArrowUpDown, Loader2,
-  Plus, Save, RefreshCw, Crown, KeyRound, CreditCard, Pencil, Gift
+  Plus, Save, RefreshCw, Crown, KeyRound, CreditCard, Pencil, Gift, Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DOMAIN } from '../config/site';
