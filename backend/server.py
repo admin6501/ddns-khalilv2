@@ -1426,9 +1426,50 @@ async def start_telegram_bot():
 
     # Stop any existing bot instance first (handles restart scenarios)
     await stop_telegram_bot()
-    await asyncio.sleep(1)
+    await asyncio.sleep(2)
 
-    max_retries = 3
+    # ── Step 0: Force-close any stale polling connections via raw API ──
+    try:
+        async with httpx.AsyncClient() as hc:
+            # Call deleteWebhook to clear any webhook
+            await hc.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteWebhook",
+                json={"drop_pending_updates": False},
+                timeout=10
+            )
+            # Force-close stale getUpdates by calling with short timeout
+            # This will either succeed (no conflict) or return conflict error
+            for _flush in range(3):
+                resp = await hc.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
+                    json={"offset": -1, "limit": 1, "timeout": 0},
+                    timeout=10
+                )
+                data = resp.json()
+                if data.get("ok"):
+                    # Successfully claimed polling — clear offset
+                    if data.get("result"):
+                        last_id = data["result"][-1]["update_id"]
+                        await hc.post(
+                            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
+                            json={"offset": last_id + 1, "limit": 1, "timeout": 0},
+                            timeout=10
+                        )
+                    logger.info("Telegram bot: pre-start flush OK, no conflict")
+                    break
+                elif "Conflict" in str(data.get("description", "")):
+                    logger.warning(f"Telegram bot: conflict detected on flush attempt {_flush+1}, waiting...")
+                    await asyncio.sleep(5)
+                else:
+                    break
+    except Exception as e:
+        logger.warning(f"Telegram bot: pre-start flush error (non-critical): {e}")
+
+    # Wait for Telegram servers to release old long-poll connections
+    logger.info("Telegram bot: waiting for old connections to fully close...")
+    await asyncio.sleep(5)
+
+    max_retries = 5
     for attempt in range(1, max_retries + 1):
         try:
             telegram_bot_app = (
@@ -1466,7 +1507,7 @@ async def start_telegram_bot():
             await telegram_bot_app.initialize()
 
             # ── Step 1: Force delete webhook ──
-            del_result = await telegram_bot_app.bot.delete_webhook(drop_pending_updates=True)
+            del_result = await telegram_bot_app.bot.delete_webhook(drop_pending_updates=False)
             logger.info(f"Telegram bot: delete_webhook result={del_result}")
 
             # ── Step 2: Verify webhook is actually deleted ──
@@ -1474,36 +1515,44 @@ async def start_telegram_bot():
             logger.info(f"Telegram bot: webhook_info url='{wh_info.url}' pending={wh_info.pending_update_count}")
             if wh_info.url:
                 logger.warning(f"Telegram bot: webhook still set to '{wh_info.url}', deleting again...")
-                await telegram_bot_app.bot.delete_webhook(drop_pending_updates=True)
-                await asyncio.sleep(2)
-                wh_info2 = await telegram_bot_app.bot.get_webhook_info()
-                logger.info(f"Telegram bot: webhook_info after 2nd delete: url='{wh_info2.url}'")
+                await telegram_bot_app.bot.delete_webhook(drop_pending_updates=False)
+                await asyncio.sleep(3)
 
-            logger.info("Telegram bot: waiting for old connections to clear...")
-            await asyncio.sleep(3)
-
-            # ── Step 3: Reset offset by calling getUpdates directly ──
+            # ── Step 3: Test getUpdates before starting polling ──
             try:
                 async with httpx.AsyncClient() as hc:
                     resp = await hc.post(
                         f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
-                        json={"offset": -1, "limit": 1, "timeout": 1},
+                        json={"offset": -1, "limit": 1, "timeout": 0},
                         timeout=10
                     )
                     gu_data = resp.json()
-                    if gu_data.get("ok") and gu_data.get("result"):
-                        last_id = gu_data["result"][-1]["update_id"]
-                        # Confirm the offset by requesting update_id+1
-                        await hc.post(
-                            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
-                            json={"offset": last_id + 1, "limit": 1, "timeout": 1},
-                            timeout=10
-                        )
-                        logger.info(f"Telegram bot: offset reset to {last_id + 1}")
+                    if not gu_data.get("ok"):
+                        desc = gu_data.get("description", "")
+                        if "Conflict" in desc:
+                            logger.warning(f"Telegram bot: 409 Conflict on attempt {attempt} — another instance is polling!")
+                            raise Exception(f"409 Conflict: {desc}")
+                        else:
+                            logger.warning(f"Telegram bot: getUpdates test failed: {desc}")
                     else:
-                        logger.info("Telegram bot: no pending updates, offset OK")
+                        # Reset offset
+                        if gu_data.get("result"):
+                            last_id = gu_data["result"][-1]["update_id"]
+                            await hc.post(
+                                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
+                                json={"offset": last_id + 1, "limit": 1, "timeout": 0},
+                                timeout=10
+                            )
+                            logger.info(f"Telegram bot: offset reset to {last_id + 1}")
+                        else:
+                            logger.info("Telegram bot: no pending updates, offset OK")
+            except httpx.HTTPError as e:
+                logger.warning(f"Telegram bot: getUpdates test HTTP error: {e}")
+            # Re-raise Conflict exceptions to trigger retry
             except Exception as e:
-                logger.warning(f"Telegram bot: offset reset failed (non-critical): {e}")
+                if "409 Conflict" in str(e):
+                    raise
+                logger.warning(f"Telegram bot: getUpdates test error (non-critical): {e}")
 
             # ── Step 4: Start application & polling ──
             await telegram_bot_app.bot.set_my_commands(commands)
@@ -1518,11 +1567,12 @@ async def start_telegram_bot():
             logger.info(f"Telegram bot started successfully: @{bot_info.username} (ID: {bot_info.id})")
 
             # ── Step 5: Verify polling is working by checking one cycle ──
-            await asyncio.sleep(2)
+            await asyncio.sleep(3)
             if telegram_bot_app.updater and telegram_bot_app.updater.running:
-                logger.info("Telegram bot: polling confirmed running")
+                logger.info("Telegram bot: polling confirmed running ✓")
             else:
-                logger.warning("Telegram bot: polling NOT running after start!")
+                logger.warning("Telegram bot: polling NOT running after start! Retrying...")
+                raise Exception("Polling not running after start")
 
             return  # Success — exit retry loop
         except Exception as e:
@@ -1539,7 +1589,8 @@ async def start_telegram_bot():
                 pass
             telegram_bot_app = None
             if attempt < max_retries:
-                wait = attempt * 3
+                # Exponential backoff: 5s, 10s, 15s, 20s
+                wait = attempt * 5
                 logger.info(f"Telegram bot: retrying in {wait}s ...")
                 await asyncio.sleep(wait)
 
