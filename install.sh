@@ -1046,6 +1046,7 @@ do_telegram_config() {
 
       success "Token saved"
       info "Restarting backend..."
+      clear_bot_lock
       systemctl restart ${SERVICE_NAME} 2>/dev/null
       success "Done! Bot should be active now."
     }
