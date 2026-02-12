@@ -1058,7 +1058,7 @@ async def start_telegram_bot():
         lang = get_lang(user)
         if user:
             await update.message.reply_text(
-                t(lang, "welcome_logged_in", name=user['name'], domain=DOMAIN_NAME),
+                t(lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
                 reply_markup=main_menu_kb(lang)
             )
         else:
@@ -1068,7 +1068,7 @@ async def start_telegram_bot():
                  InlineKeyboardButton("🌐 فارسی", callback_data="set_lang_fa")]
             ])
             await update.message.reply_text(
-                t(lang, "welcome_new", domain=DOMAIN_NAME),
+                t(lang, "welcome_new", domain=CF_ZONE_DOMAIN),
                 reply_markup=kb
             )
 
