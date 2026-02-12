@@ -1495,6 +1495,351 @@ async def start_telegram_bot():
             kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_relogin"), callback_data="help_login")]])
             await query.edit_message_text(t(lang, "logout_success"), reply_markup=kb)
 
+        # ══════════════════════════════════════════════════════════
+        #  ADMIN PANEL CALLBACKS
+        # ══════════════════════════════════════════════════════════
+
+        elif data == "adm_panel":
+            if not is_admin_chat(chat_id):
+                await query.edit_message_text(t(lang, "admin_not_authorized"), reply_markup=back_menu_kb(lang))
+                return
+            await query.edit_message_text(t(lang, "admin_title"), reply_markup=admin_menu_kb(lang), parse_mode="Markdown")
+
+        # ── Admin Stats ──
+        elif data == "adm_stats":
+            if not is_admin_chat(chat_id):
+                return
+            total_users = await db.users.count_documents({})
+            total_records = await db.dns_records.count_documents({})
+            total_plans = await db.plans.count_documents({})
+            free_count = await db.users.count_documents({"plan": "free"})
+            pro_count = await db.users.count_documents({"plan": "pro"})
+            ent_count = await db.users.count_documents({"plan": "enterprise"})
+            other_count = total_users - free_count - pro_count - ent_count
+            text = t(lang, "admin_stats_text",
+                     users=total_users, records=total_records, plans=total_plans,
+                     free=free_count, pro=pro_count, enterprise=ent_count, other=other_count)
+            await query.edit_message_text(text, reply_markup=admin_back_kb(lang), parse_mode="Markdown")
+
+        # ── Admin Users List (paginated) ──
+        elif data.startswith("adm_users_"):
+            if not is_admin_chat(chat_id):
+                return
+            page = int(data.split("_")[-1])
+            per_page = 8
+            total = await db.users.count_documents({})
+            pages = max(1, (total + per_page - 1) // per_page)
+            users_list = await db.users.find({}, {"_id": 0, "password_hash": 0}).skip(page * per_page).limit(per_page).to_list(per_page)
+            if not users_list:
+                await query.edit_message_text(t(lang, "admin_no_users"), reply_markup=admin_back_kb(lang))
+                return
+            text = t(lang, "admin_users_title", page=page + 1, pages=pages)
+            buttons = []
+            for u in users_list:
+                rc = await db.dns_records.count_documents({"user_id": u["id"]})
+                role_icon = "🛡" if u.get("role") == "admin" else "👤"
+                label = f"{role_icon} {u['name']} | {u['plan']} | {rc} rec"
+                buttons.append([InlineKeyboardButton(label, callback_data=f"adm_user_{u['id']}")])
+            nav = []
+            if page > 0:
+                nav.append(InlineKeyboardButton(t(lang, "btn_prev"), callback_data=f"adm_users_{page - 1}"))
+            if page < pages - 1:
+                nav.append(InlineKeyboardButton(t(lang, "btn_next"), callback_data=f"adm_users_{page + 1}"))
+            if nav:
+                buttons.append(nav)
+            buttons.append([InlineKeyboardButton("🔙", callback_data="adm_panel")])
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
+
+        # ── Admin User Detail ──
+        elif data.startswith("adm_user_") and not data.startswith("adm_user_plan_") and not data.startswith("adm_user_del_") and not data.startswith("adm_user_recs_"):
+            if not is_admin_chat(chat_id):
+                return
+            uid = data[9:]
+            target = await db.users.find_one({"id": uid}, {"_id": 0, "password_hash": 0})
+            if not target:
+                await query.edit_message_text("❌ User not found", reply_markup=admin_back_kb(lang))
+                return
+            rc = await db.dns_records.count_documents({"user_id": uid})
+            text = t(lang, "admin_user_detail",
+                     id=target['id'][:8], email=target['email'], name=target['name'],
+                     plan=target['plan'], count=rc, limit=target['record_limit'],
+                     ref_code=target.get('referral_code', '-'), ref_count=target.get('referral_count', 0),
+                     date=target['created_at'][:10])
+            buttons = [
+                [InlineKeyboardButton(t(lang, "btn_change_plan"), callback_data=f"adm_user_plan_{uid}"),
+                 InlineKeyboardButton(t(lang, "btn_user_records"), callback_data=f"adm_user_recs_{uid}")],
+            ]
+            if target.get("role") != "admin":
+                buttons.append([InlineKeyboardButton(t(lang, "btn_del_user"), callback_data=f"adm_user_del_{uid}")])
+            buttons.append([InlineKeyboardButton("🔙", callback_data="adm_users_0")])
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
+
+        # ── Admin Change User Plan ──
+        elif data.startswith("adm_user_plan_") and not data.startswith("adm_user_plan_set_"):
+            if not is_admin_chat(chat_id):
+                return
+            uid = data[14:]
+            plans_list = await db.plans.find({}, {"_id": 0}).sort("sort_order", 1).to_list(50)
+            buttons = []
+            for p in plans_list:
+                buttons.append([InlineKeyboardButton(f"📋 {p['name']} ({p['record_limit']} rec)", callback_data=f"adm_user_plan_set_{uid}_{p['plan_id']}")])
+            buttons.append([InlineKeyboardButton("🔙", callback_data=f"adm_user_{uid}")])
+            await query.edit_message_text(t(lang, "admin_select_plan"), reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
+
+        elif data.startswith("adm_user_plan_set_"):
+            if not is_admin_chat(chat_id):
+                return
+            parts = data[18:].rsplit("_", 1)
+            uid, plan_id = parts[0], parts[1]
+            plan_doc = await db.plans.find_one({"plan_id": plan_id}, {"_id": 0})
+            if not plan_doc:
+                await query.edit_message_text("❌ Plan not found", reply_markup=admin_back_kb(lang))
+                return
+            target = await db.users.find_one({"id": uid}, {"_id": 0})
+            if not target:
+                await query.edit_message_text("❌ User not found", reply_markup=admin_back_kb(lang))
+                return
+            await db.users.update_one({"id": uid}, {"$set": {"plan": plan_id, "record_limit": plan_doc["record_limit"]}})
+            await log_activity("admin", "admin", "plan_changed", f"{target['email']} → {plan_id} (via Telegram)")
+            await query.edit_message_text(
+                t(lang, "admin_plan_changed", email=target['email'], plan=plan_id),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙", callback_data=f"adm_user_{uid}")]]),
+                parse_mode="Markdown"
+            )
+
+        # ── Admin Delete User (confirm) ──
+        elif data.startswith("adm_user_del_") and not data.startswith("adm_user_del_yes_"):
+            if not is_admin_chat(chat_id):
+                return
+            uid = data[13:]
+            target = await db.users.find_one({"id": uid}, {"_id": 0, "password_hash": 0})
+            if not target:
+                await query.edit_message_text("❌ User not found", reply_markup=admin_back_kb(lang))
+                return
+            rc = await db.dns_records.count_documents({"user_id": uid})
+            text = t(lang, "admin_del_confirm", name=target['name'], email=target['email'], count=rc)
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅", callback_data=f"adm_user_del_yes_{uid}"),
+                 InlineKeyboardButton("❌", callback_data=f"adm_user_{uid}")]
+            ])
+            await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+
+        elif data.startswith("adm_user_del_yes_"):
+            if not is_admin_chat(chat_id):
+                return
+            uid = data[17:]
+            target = await db.users.find_one({"id": uid}, {"_id": 0})
+            if not target or target.get("role") == "admin":
+                await query.edit_message_text("❌ Cannot delete", reply_markup=admin_back_kb(lang))
+                return
+            # Delete CF records
+            user_records = await db.dns_records.find({"user_id": uid}, {"_id": 0}).to_list(500)
+            for rec in user_records:
+                try:
+                    await cf_delete_record(rec["cf_record_id"])
+                except Exception as e:
+                    logger.warning(f"Failed to delete CF record {rec['cf_record_id']}: {e}")
+            await db.dns_records.delete_many({"user_id": uid})
+            await db.users.delete_one({"id": uid})
+            await log_activity("admin", "admin", "user_deleted", f"{target['email']} + {len(user_records)} records (via Telegram)")
+            await query.edit_message_text(
+                t(lang, "admin_del_success", email=target['email'], count=len(user_records)),
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙", callback_data="adm_users_0")]]),
+                parse_mode="Markdown"
+            )
+
+        # ── Admin User Records ──
+        elif data.startswith("adm_user_recs_"):
+            if not is_admin_chat(chat_id):
+                return
+            uid = data[14:]
+            target = await db.users.find_one({"id": uid}, {"_id": 0, "password_hash": 0})
+            if not target:
+                await query.edit_message_text("❌ User not found", reply_markup=admin_back_kb(lang))
+                return
+            records = await db.dns_records.find({"user_id": uid}, {"_id": 0}).to_list(100)
+            if not records:
+                await query.edit_message_text(t(lang, "admin_no_records"),
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙", callback_data=f"adm_user_{uid}")]]))
+                return
+            text = t(lang, "admin_user_records", name=target['name'], count=len(records))
+            buttons = []
+            for r in records:
+                proxy = "🟠" if r.get("proxied") else "⚪️"
+                text += f"{proxy} `{r['record_type']}` │ {r['full_name']} → `{r['content']}`\n"
+                buttons.append([InlineKeyboardButton(f"🗑 {r['record_type']} | {r['name']}", callback_data=f"adm_rec_del_{r['id']}")])
+            buttons.append([InlineKeyboardButton("🔙", callback_data=f"adm_user_{uid}")])
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
+
+        # ── Admin All Records (paginated) ──
+        elif data.startswith("adm_records_"):
+            if not is_admin_chat(chat_id):
+                return
+            page = int(data.split("_")[-1])
+            per_page = 8
+            total = await db.dns_records.count_documents({})
+            pages = max(1, (total + per_page - 1) // per_page)
+            records = await db.dns_records.find({}, {"_id": 0}).skip(page * per_page).limit(per_page).to_list(per_page)
+            if not records:
+                await query.edit_message_text(t(lang, "admin_no_records"), reply_markup=admin_back_kb(lang))
+                return
+            text = f"📝 **{t(lang, 'admin_records')}** ({page + 1}/{pages})\n\n"
+            buttons = []
+            user_cache = {}
+            for r in records:
+                uid = r["user_id"]
+                if uid not in user_cache:
+                    u = await db.users.find_one({"id": uid}, {"_id": 0, "email": 1, "name": 1})
+                    user_cache[uid] = u or {"email": "?", "name": "?"}
+                proxy = "🟠" if r.get("proxied") else "⚪️"
+                text += f"{proxy} `{r['record_type']}` │ {r['full_name']}\n   → `{r['content']}` | {user_cache[uid]['name']}\n"
+                buttons.append([InlineKeyboardButton(f"🗑 {r['record_type']} | {r['name']}", callback_data=f"adm_rec_del_{r['id']}")])
+            nav = []
+            if page > 0:
+                nav.append(InlineKeyboardButton(t(lang, "btn_prev"), callback_data=f"adm_records_{page - 1}"))
+            if page < pages - 1:
+                nav.append(InlineKeyboardButton(t(lang, "btn_next"), callback_data=f"adm_records_{page + 1}"))
+            if nav:
+                buttons.append(nav)
+            buttons.append([InlineKeyboardButton("🔙", callback_data="adm_panel")])
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
+
+        # ── Admin Delete Record (confirm + execute) ──
+        elif data.startswith("adm_rec_del_") and not data.startswith("adm_rec_del_yes_"):
+            if not is_admin_chat(chat_id):
+                return
+            rid = data[12:]
+            record = await db.dns_records.find_one({"id": rid}, {"_id": 0})
+            if not record:
+                await query.edit_message_text(t(lang, "delete_not_found"), reply_markup=admin_back_kb(lang))
+                return
+            rec_user = await db.users.find_one({"id": record["user_id"]}, {"_id": 0, "name": 1, "email": 1})
+            text = t(lang, "admin_record_del_confirm",
+                     type=record['record_type'], name=record['full_name'],
+                     value=record['content'], user=(rec_user or {}).get('email', '?'))
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅", callback_data=f"adm_rec_del_yes_{rid}"),
+                 InlineKeyboardButton("❌", callback_data="adm_records_0")]
+            ])
+            await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+
+        elif data.startswith("adm_rec_del_yes_"):
+            if not is_admin_chat(chat_id):
+                return
+            rid = data[16:]
+            record = await db.dns_records.find_one({"id": rid}, {"_id": 0})
+            if not record:
+                await query.edit_message_text(t(lang, "delete_not_found"), reply_markup=admin_back_kb(lang))
+                return
+            try:
+                await cf_delete_record(record["cf_record_id"])
+                await db.dns_records.delete_one({"id": rid})
+                await db.users.update_one({"id": record["user_id"]}, {"$inc": {"record_count": -1}})
+                await log_activity("admin", "admin", "record_deleted", f"{record['record_type']} {record['full_name']} (via Telegram)")
+                await query.edit_message_text(
+                    t(lang, "admin_record_del_success", type=record['record_type'], name=record['full_name']),
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙", callback_data="adm_records_0")]]),
+                    parse_mode="Markdown"
+                )
+            except Exception as e:
+                await query.edit_message_text(t(lang, "error", err=str(e)), reply_markup=admin_back_kb(lang))
+
+        # ── Admin Plans ──
+        elif data == "adm_plans":
+            if not is_admin_chat(chat_id):
+                return
+            plans_list = await db.plans.find({}, {"_id": 0}).sort("sort_order", 1).to_list(50)
+            if not plans_list:
+                await query.edit_message_text("📭 No plans", reply_markup=admin_back_kb(lang))
+                return
+            text = t(lang, "admin_plans_title")
+            for p in plans_list:
+                pop = " ⭐" if p.get("popular") else ""
+                text += t(lang, "admin_plan_line", name=p['name'], id=p['plan_id'], price=p.get('price', '-'), limit=p['record_limit']) + pop
+            await query.edit_message_text(text, reply_markup=admin_back_kb(lang), parse_mode="Markdown")
+
+        # ── Admin Settings ──
+        elif data == "adm_settings":
+            if not is_admin_chat(chat_id):
+                return
+            settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
+            if not settings:
+                settings = {}
+            text = t(lang, "admin_settings_title") + t(lang, "admin_settings_body",
+                tg_id=settings.get("telegram_id", "-"),
+                tg_url=settings.get("telegram_url", "-"),
+                bonus=settings.get("referral_bonus_per_invite", 1),
+                free_records=settings.get("default_free_records", 2),
+                msg_en=settings.get("contact_message_en", "-")[:50],
+                msg_fa=settings.get("contact_message_fa", "-")[:50])
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton(t(lang, "btn_edit_setting"), callback_data="adm_settings_edit")],
+                [InlineKeyboardButton("🔙", callback_data="adm_panel")]
+            ])
+            await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+
+        elif data == "adm_settings_edit":
+            if not is_admin_chat(chat_id):
+                return
+            fields = [
+                ("telegram_id", "📱 Telegram ID"),
+                ("telegram_url", "🔗 Telegram URL"),
+                ("referral_bonus_per_invite", "🎁 Referral Bonus"),
+                ("default_free_records", "📝 Default Free Records"),
+                ("contact_message_en", "💬 Contact EN"),
+                ("contact_message_fa", "💬 Contact FA"),
+            ]
+            buttons = []
+            for fid, fname in fields:
+                buttons.append([InlineKeyboardButton(fname, callback_data=f"adm_set_{fid}")])
+            buttons.append([InlineKeyboardButton("🔙", callback_data="adm_settings")])
+            await query.edit_message_text(t(lang, "admin_setting_choose"), reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
+
+        elif data.startswith("adm_set_"):
+            if not is_admin_chat(chat_id):
+                return
+            field = data[8:]
+            context.user_data["adm_edit_field"] = field
+            context.user_data["adm_edit_step"] = "value"
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="adm_settings")]])
+            await query.edit_message_text(
+                t(lang, "admin_setting_enter", field=field),
+                reply_markup=kb, parse_mode="Markdown"
+            )
+
+        # ── Admin Activity Logs (paginated) ──
+        elif data.startswith("adm_logs_"):
+            if not is_admin_chat(chat_id):
+                return
+            page = int(data.split("_")[-1])
+            per_page = 8
+            total = await db.activity_logs.count_documents({})
+            pages = max(1, (total + per_page - 1) // per_page)
+            logs = await db.activity_logs.find({}, {"_id": 0}).sort("created_at", -1).skip(page * per_page).limit(per_page).to_list(per_page)
+            if not logs:
+                await query.edit_message_text("📭 No logs", reply_markup=admin_back_kb(lang))
+                return
+            text = t(lang, "admin_logs_title")
+            for lg in logs:
+                text += t(lang, "admin_log_line",
+                    date=lg.get('created_at', '-')[:16],
+                    email=lg.get('user_email', '-'),
+                    action=lg.get('action', '-'),
+                    details=(lg.get('details', '') or '')[:60])
+            # Trim if too long
+            if len(text) > 3800:
+                text = text[:3800] + "\n..."
+            nav = []
+            if page > 0:
+                nav.append(InlineKeyboardButton(t(lang, "btn_prev"), callback_data=f"adm_logs_{page - 1}"))
+            if page < pages - 1:
+                nav.append(InlineKeyboardButton(t(lang, "btn_next"), callback_data=f"adm_logs_{page + 1}"))
+            buttons = []
+            if nav:
+                buttons.append(nav)
+            buttons.append([InlineKeyboardButton("🔙", callback_data="adm_panel")])
+            await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
+
     # ── Message Handler (for login & add record flows) ────────
     async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
