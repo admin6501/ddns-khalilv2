@@ -1153,33 +1153,68 @@ async def start_telegram_bot():
         chat_id = update.effective_chat.id
         logger.info(f"Telegram callback: {data} from chat_id={chat_id}")
         user = await get_user_by_chat(chat_id)
-        lang = get_lang(user) if user else context.user_data.get("lang", "fa")
+        lang = await get_chat_lang(chat_id, user)
+        if lang is None:
+            lang = context.user_data.get("lang", "fa")
+        context.user_data["lang"] = lang
 
-        # ── Set language (before login) ──
+        # ── Set language (first time — before login) ──
         if data in ("set_lang_fa", "set_lang_en"):
             new_lang = "fa" if data == "set_lang_fa" else "en"
             context.user_data["lang"] = new_lang
+            await set_chat_lang(chat_id, new_lang, user)
             if user:
-                await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_lang": new_lang}})
-            await query.edit_message_text(
-                t(new_lang, "lang_changed"),
-                reply_markup=main_menu_kb(new_lang) if user else InlineKeyboardMarkup([
-                    [InlineKeyboardButton(t(new_lang, "btn_login"), callback_data="help_login")]
+                # Logged in → show main menu
+                await query.edit_message_text(
+                    t(new_lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
+                    reply_markup=main_menu_kb(new_lang)
+                )
+            else:
+                # Not logged in → show welcome + login button
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t(new_lang, "btn_login"), callback_data="help_login")],
+                    [InlineKeyboardButton(t(new_lang, "btn_lang"), callback_data="toggle_lang_prelogin")]
                 ])
+                await query.edit_message_text(
+                    t(new_lang, "welcome_new", domain=CF_ZONE_DOMAIN),
+                    reply_markup=kb
+                )
+            return
+
+        # ── Toggle language (pre-login) ──
+        if data == "toggle_lang_prelogin":
+            new_lang = "en" if lang == "fa" else "fa"
+            context.user_data["lang"] = new_lang
+            await set_chat_lang(chat_id, new_lang, user)
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton(t(new_lang, "btn_login"), callback_data="help_login")],
+                [InlineKeyboardButton(t(new_lang, "btn_lang"), callback_data="toggle_lang_prelogin")]
+            ])
+            await query.edit_message_text(
+                t(new_lang, "welcome_new", domain=CF_ZONE_DOMAIN),
+                reply_markup=kb
             )
             return
 
-        # ── Toggle language ──
+        # ── Toggle language (logged in — main menu) ──
         if data == "toggle_lang":
             new_lang = "en" if lang == "fa" else "fa"
             context.user_data["lang"] = new_lang
+            await set_chat_lang(chat_id, new_lang, user)
             if user:
-                await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_lang": new_lang}})
-                lang = new_lang
-            await query.edit_message_text(
-                t(new_lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN) if user else t(new_lang, "lang_changed"),
-                reply_markup=main_menu_kb(new_lang)
-            )
+                await query.edit_message_text(
+                    t(new_lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
+                    reply_markup=main_menu_kb(new_lang)
+                )
+            else:
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t(new_lang, "btn_login"), callback_data="help_login")],
+                    [InlineKeyboardButton(t(new_lang, "btn_lang"), callback_data="toggle_lang_prelogin")]
+                ])
+                await query.edit_message_text(
+                    t(new_lang, "welcome_new", domain=CF_ZONE_DOMAIN),
+                    reply_markup=kb
+                )
             return
 
         # ── Main Menu ──
