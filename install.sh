@@ -452,7 +452,12 @@ EOF
   python3 -m venv venv || fatal "Python venv failed"
   source venv/bin/activate
   pip install --upgrade pip -q 2>/dev/null
-  pip install -r requirements.txt -q 2>/dev/null || pip install fastapi uvicorn motor pymongo python-dotenv bcrypt pyjwt httpx pydantic[email] -q
+  pip install -r requirements.txt -q 2>/dev/null || {
+    warn "Full requirements install failed, installing core packages..."
+    pip install fastapi uvicorn motor pymongo python-dotenv bcrypt pyjwt httpx "pydantic[email]" \
+      python-multipart starlette email-validator python-telegram-bot watchfiles -q 2>/dev/null \
+      || fatal "Core dependencies install failed"
+  }
   deactivate
   success "Backend dependencies installed"
 }
