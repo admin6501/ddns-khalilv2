@@ -867,165 +867,374 @@ async def start_telegram_bot():
         return
 
     try:
-        from telegram import Update, BotCommand
-        from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+        from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup
+        from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
     except ImportError:
         logger.warning("Telegram bot: python-telegram-bot not installed, skipping.")
         return
 
-    async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text(
-            f"👋 به ربات مدیریت DNS {DOMAIN_NAME} خوش آمدید!\n\n"
-            f"برای اتصال اکانت:\n"
-            f"/login email password\n\n"
-            f"دستورات:\n"
-            f"/records - لیست رکوردها\n"
-            f"/add type name value - ساخت رکورد\n"
-            f"/delete name - حذف رکورد\n"
-            f"/status - وضعیت اکانت\n"
-            f"/logout - قطع اتصال"
-        )
+    # ── Helper: get user from chat id ────────────────────────
+    async def get_user_by_chat(chat_id):
+        return await db.users.find_one({"telegram_chat_id": str(chat_id)}, {"_id": 0})
 
+    async def send_not_logged_in(update_or_query):
+        kb = [[InlineKeyboardButton("🔑 ورود به اکانت", callback_data="help_login")]]
+        msg = "❌ ابتدا باید وارد اکانت خود شوید."
+        if hasattr(update_or_query, 'message') and update_or_query.message:
+            await update_or_query.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb))
+        else:
+            await update_or_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(kb))
+
+    # ── Main Menu Keyboard ───────────────────────────────────
+    def main_menu_kb():
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton("📝 رکوردهای من", callback_data="records"),
+             InlineKeyboardButton("➕ ساخت رکورد", callback_data="add_start")],
+            [InlineKeyboardButton("📊 وضعیت اکانت", callback_data="status"),
+             InlineKeyboardButton("🗑 حذف رکورد", callback_data="delete_list")],
+            [InlineKeyboardButton("🔗 لینک دعوت", callback_data="referral"),
+             InlineKeyboardButton("🚪 خروج", callback_data="logout")],
+        ])
+
+    def back_menu_kb():
+        return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")]])
+
+    # ── /start ───────────────────────────────────────────────
+    async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        chat_id = update.effective_chat.id
+        user = await get_user_by_chat(chat_id)
+        if user:
+            await update.message.reply_text(
+                f"👋 سلام {user['name']}!\n"
+                f"🌐 مدیریت DNS {DOMAIN_NAME}\n\n"
+                f"از دکمه‌های زیر استفاده کنید:",
+                reply_markup=main_menu_kb()
+            )
+        else:
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔑 راهنمای ورود", callback_data="help_login")]
+            ])
+            await update.message.reply_text(
+                f"👋 به ربات مدیریت DNS {DOMAIN_NAME} خوش آمدید!\n\n"
+                f"برای شروع، اکانت خود را متصل کنید:",
+                reply_markup=kb
+            )
+
+    # ── /login ───────────────────────────────────────────────
     async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
         args = context.args
         if len(args) < 2:
-            await update.message.reply_text("❌ استفاده: /login email password")
+            await update.message.reply_text(
+                "📧 لطفاً ایمیل و رمز عبور خود را ارسال کنید:\n\n"
+                "`/login email password`\n\n"
+                "مثال:\n"
+                "`/login user@example.com mypass123`",
+                parse_mode="Markdown"
+            )
             return
         email, password = args[0], args[1]
         user = await db.users.find_one({"email": email}, {"_id": 0})
         if not user or not verify_password(password, user["password_hash"]):
-            await update.message.reply_text("❌ ایمیل یا رمز عبور اشتباه است.")
+            await update.message.reply_text("❌ ایمیل یا رمز عبور اشتباه است.", reply_markup=back_menu_kb())
             return
         chat_id = str(update.effective_chat.id)
         await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_chat_id": chat_id}})
-        await update.message.reply_text(f"✅ اکانت {email} با موفقیت متصل شد!\n\n⚠️ پیام /login خود را حذف کنید تا رمز عبورتان امن بماند.")
-        await log_activity(user["id"], user["email"], "telegram_linked", f"Telegram chat linked: {chat_id}")
-
-    async def cmd_logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        chat_id = str(update.effective_chat.id)
-        user = await db.users.find_one({"telegram_chat_id": chat_id}, {"_id": 0})
-        if not user:
-            await update.message.reply_text("❌ هیچ اکانتی به این چت متصل نیست.")
-            return
-        await db.users.update_one({"id": user["id"]}, {"$unset": {"telegram_chat_id": ""}})
-        await update.message.reply_text("✅ اکانت شما از ربات قطع شد.")
-
-    async def get_user_from_chat(update: Update):
-        chat_id = str(update.effective_chat.id)
-        user = await db.users.find_one({"telegram_chat_id": chat_id}, {"_id": 0})
-        if not user:
-            await update.message.reply_text("❌ ابتدا با /login وارد شوید.")
-        return user
-
-    async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user = await get_user_from_chat(update)
-        if not user:
-            return
-        record_count = await db.dns_records.count_documents({"user_id": user["id"]})
+        await log_activity(user["id"], user["email"], "telegram_linked", f"Telegram linked: {chat_id}")
         await update.message.reply_text(
-            f"📊 وضعیت اکانت\n\n"
-            f"👤 {user['name']} ({user['email']})\n"
-            f"📋 پلن: {user['plan']}\n"
-            f"📝 رکوردها: {record_count}/{user['record_limit']}\n"
-            f"🔗 کد دعوت: {user.get('referral_code', '-')}\n"
-            f"👥 دعوت‌ها: {user.get('referral_count', 0)}"
+            f"✅ اکانت {user['name']} ({email}) با موفقیت متصل شد!\n\n"
+            f"⚠️ توصیه: پیام /login خود را حذف کنید.",
+            reply_markup=main_menu_kb()
         )
 
-    async def cmd_records(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user = await get_user_from_chat(update)
-        if not user:
-            return
-        records = await db.dns_records.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
-        if not records:
-            await update.message.reply_text("📭 هیچ رکوردی ندارید.\n\nبرای ساخت: /add A mysite 1.2.3.4")
-            return
-        text = f"📝 رکوردهای شما ({len(records)}):\n\n"
-        for r in records:
-            proxy = "🟠" if r.get("proxied") else "⚪️"
-            text += f"{proxy} {r['record_type']} | {r['full_name']} → {r['content']}\n"
-        await update.message.reply_text(text)
+    # ── Callback Handler ─────────────────────────────────────
+    async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        await query.answer()
+        data = query.data
+        chat_id = update.effective_chat.id
 
-    async def cmd_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user = await get_user_from_chat(update)
-        if not user:
-            return
-        args = context.args
-        if len(args) < 3:
-            await update.message.reply_text("❌ استفاده: /add TYPE NAME VALUE\n\nمثال: /add A mysite 1.2.3.4")
-            return
-        record_type = args[0].upper()
-        name = args[1].lower()
-        content = args[2]
-        if record_type not in ["A", "AAAA", "CNAME"]:
-            await update.message.reply_text("❌ فقط A، AAAA و CNAME پشتیبانی میشه.")
-            return
-        record_count = await db.dns_records.count_documents({"user_id": user["id"]})
-        if record_count >= user["record_limit"]:
-            await update.message.reply_text(f"❌ محدودیت رکورد ({user['record_limit']}). پلن خود را ارتقا دهید.")
-            return
-        full_name = f"{name}.{DOMAIN_NAME}" if name != "@" else DOMAIN_NAME
-        existing = await db.dns_records.find_one({"full_name": full_name, "record_type": record_type})
-        if existing:
-            await update.message.reply_text(f"❌ رکورد {full_name} ({record_type}) قبلاً وجود دارد.")
-            return
-        try:
-            cf_result = await cf_create_record(name=name, record_type=record_type, content=content)
-            record_id = str(uuid.uuid4())
-            record_doc = {
-                "id": record_id, "cf_record_id": cf_result["id"], "user_id": user["id"],
-                "name": name, "full_name": full_name, "record_type": record_type,
-                "content": content, "ttl": 1, "proxied": False,
-                "created_at": datetime.now(timezone.utc).isoformat()
+        # ── Main Menu ──
+        if data == "main_menu":
+            user = await get_user_by_chat(chat_id)
+            if not user:
+                await send_not_logged_in(query)
+                return
+            await query.edit_message_text(
+                f"👋 سلام {user['name']}!\n🌐 {DOMAIN_NAME}\n\nاز دکمه‌های زیر استفاده کنید:",
+                reply_markup=main_menu_kb()
+            )
+
+        # ── Help Login ──
+        elif data == "help_login":
+            await query.edit_message_text(
+                "🔑 **راهنمای ورود**\n\n"
+                "دستور زیر را ارسال کنید:\n\n"
+                "`/login ایمیل رمزعبور`\n\n"
+                "مثال:\n"
+                "`/login user@example.com mypass123`\n\n"
+                "⚠️ بعد از ورود موفق، پیام لاگین را حذف کنید.",
+                parse_mode="Markdown",
+                reply_markup=back_menu_kb()
+            )
+
+        # ── Records List ──
+        elif data == "records":
+            user = await get_user_by_chat(chat_id)
+            if not user:
+                await send_not_logged_in(query)
+                return
+            records = await db.dns_records.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
+            if not records:
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("➕ ساخت رکورد", callback_data="add_start")],
+                    [InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")]
+                ])
+                await query.edit_message_text("📭 هیچ رکوردی ندارید.", reply_markup=kb)
+                return
+            text = f"📝 رکوردهای شما ({len(records)}/{user['record_limit']}):\n\n"
+            for r in records:
+                proxy = "🟠" if r.get("proxied") else "⚪️"
+                text += f"{proxy} `{r['record_type']}` │ {r['full_name']} → `{r['content']}`\n"
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ ساخت رکورد", callback_data="add_start"),
+                 InlineKeyboardButton("🗑 حذف رکورد", callback_data="delete_list")],
+                [InlineKeyboardButton("🔄 بروزرسانی", callback_data="records"),
+                 InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")]
+            ])
+            await query.edit_message_text(text, reply_markup=kb, parse_mode="Markdown")
+
+        # ── Status ──
+        elif data == "status":
+            user = await get_user_by_chat(chat_id)
+            if not user:
+                await send_not_logged_in(query)
+                return
+            record_count = await db.dns_records.count_documents({"user_id": user["id"]})
+            text = (
+                f"📊 **وضعیت اکانت**\n\n"
+                f"👤 {user['name']}\n"
+                f"📧 `{user['email']}`\n"
+                f"📋 پلن: **{user['plan']}**\n"
+                f"📝 رکوردها: **{record_count}** از {user['record_limit']}\n"
+                f"🔗 کد دعوت: `{user.get('referral_code', '-')}`\n"
+                f"👥 دعوت موفق: {user.get('referral_count', 0)}"
+            )
+            await query.edit_message_text(text, reply_markup=back_menu_kb(), parse_mode="Markdown")
+
+        # ── Referral ──
+        elif data == "referral":
+            user = await get_user_by_chat(chat_id)
+            if not user:
+                await send_not_logged_in(query)
+                return
+            ref_link = f"https://{DOMAIN_NAME}/register?ref={user.get('referral_code', '')}"
+            text = (
+                f"🔗 **لینک دعوت شما:**\n\n"
+                f"`{ref_link}`\n\n"
+                f"👥 دعوت موفق: {user.get('referral_count', 0)}\n"
+                f"🎁 رکورد جایزه: {user.get('referral_bonus', 0)}\n\n"
+                f"لینک بالا را کپی و برای دوستان ارسال کنید!"
+            )
+            await query.edit_message_text(text, reply_markup=back_menu_kb(), parse_mode="Markdown")
+
+        # ── Add Record: Choose Type ──
+        elif data == "add_start":
+            user = await get_user_by_chat(chat_id)
+            if not user:
+                await send_not_logged_in(query)
+                return
+            record_count = await db.dns_records.count_documents({"user_id": user["id"]})
+            if record_count >= user["record_limit"]:
+                await query.edit_message_text(
+                    f"❌ به سقف رکورد ({user['record_limit']}) رسیدید.\nپلن خود را ارتقا دهید.",
+                    reply_markup=back_menu_kb()
+                )
+                return
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🅰️ A", callback_data="add_type_A"),
+                 InlineKeyboardButton("🔤 AAAA", callback_data="add_type_AAAA"),
+                 InlineKeyboardButton("🔀 CNAME", callback_data="add_type_CNAME")],
+                [InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")]
+            ])
+            await query.edit_message_text("➕ **نوع رکورد را انتخاب کنید:**", reply_markup=kb, parse_mode="Markdown")
+
+        elif data.startswith("add_type_"):
+            record_type = data.replace("add_type_", "")
+            context.user_data["add_type"] = record_type
+            context.user_data["add_step"] = "name"
+            examples = {
+                "A": "مثال: `mysite`  →  mysite." + DOMAIN_NAME,
+                "AAAA": "مثال: `mysite`  →  mysite." + DOMAIN_NAME,
+                "CNAME": "مثال: `blog`  →  blog." + DOMAIN_NAME,
             }
-            await db.dns_records.insert_one(record_doc)
-            await db.users.update_one({"id": user["id"]}, {"$inc": {"record_count": 1}})
-            await log_activity(user["id"], user["email"], "record_created", f"{record_type} {full_name} → {content} (via Telegram)")
-            await update.message.reply_text(f"✅ رکورد ساخته شد!\n\n{record_type} {full_name} → {content}")
-        except Exception as e:
-            await update.message.reply_text(f"❌ خطا: {str(e)}")
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ انصراف", callback_data="main_menu")]])
+            await query.edit_message_text(
+                f"📝 نوع: **{record_type}**\n\n"
+                f"نام ساب‌دامین را بنویسید:\n"
+                f"{examples.get(record_type, '')}\n\n"
+                f"فقط نام را بدون دامنه تایپ کنید:",
+                reply_markup=kb, parse_mode="Markdown"
+            )
 
-    async def cmd_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user = await get_user_from_chat(update)
+        # ── Delete Record: List ──
+        elif data == "delete_list":
+            user = await get_user_by_chat(chat_id)
+            if not user:
+                await send_not_logged_in(query)
+                return
+            records = await db.dns_records.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
+            if not records:
+                await query.edit_message_text("📭 رکوردی برای حذف وجود ندارد.", reply_markup=back_menu_kb())
+                return
+            buttons = []
+            for r in records:
+                label = f"🗑 {r['record_type']} | {r['name']}.{DOMAIN_NAME}"
+                buttons.append([InlineKeyboardButton(label, callback_data=f"del_{r['id']}")])
+            buttons.append([InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")])
+            await query.edit_message_text("🗑 **کدام رکورد حذف شود؟**", reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
+
+        elif data.startswith("del_"):
+            record_id = data[4:]
+            context.user_data["pending_delete"] = record_id
+            record = await db.dns_records.find_one({"id": record_id}, {"_id": 0})
+            if not record:
+                await query.edit_message_text("❌ رکورد پیدا نشد.", reply_markup=back_menu_kb())
+                return
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ بله، حذف شود", callback_data=f"confirm_del_{record_id}"),
+                 InlineKeyboardButton("❌ انصراف", callback_data="main_menu")]
+            ])
+            await query.edit_message_text(
+                f"⚠️ **آیا مطمئنید؟**\n\n"
+                f"نوع: `{record['record_type']}`\n"
+                f"نام: `{record['full_name']}`\n"
+                f"مقدار: `{record['content']}`",
+                reply_markup=kb, parse_mode="Markdown"
+            )
+
+        elif data.startswith("confirm_del_"):
+            record_id = data[12:]
+            user = await get_user_by_chat(chat_id)
+            if not user:
+                await send_not_logged_in(query)
+                return
+            record = await db.dns_records.find_one({"id": record_id, "user_id": user["id"]}, {"_id": 0})
+            if not record:
+                await query.edit_message_text("❌ رکورد پیدا نشد.", reply_markup=back_menu_kb())
+                return
+            try:
+                await cf_delete_record(record["cf_record_id"])
+                await db.dns_records.delete_one({"id": record_id})
+                await db.users.update_one({"id": user["id"]}, {"$inc": {"record_count": -1}})
+                await log_activity(user["id"], user["email"], "record_deleted", f"{record['record_type']} {record['full_name']} (via Telegram)")
+                await query.edit_message_text(
+                    f"✅ رکورد حذف شد!\n\n`{record['record_type']}` {record['full_name']}",
+                    reply_markup=back_menu_kb(), parse_mode="Markdown"
+                )
+            except Exception as e:
+                await query.edit_message_text(f"❌ خطا: {str(e)}", reply_markup=back_menu_kb())
+
+        # ── Logout ──
+        elif data == "logout":
+            user = await get_user_by_chat(chat_id)
+            if not user:
+                await send_not_logged_in(query)
+                return
+            kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ بله، خروج", callback_data="confirm_logout"),
+                 InlineKeyboardButton("❌ انصراف", callback_data="main_menu")]
+            ])
+            await query.edit_message_text("⚠️ آیا مطمئنید می‌خواهید خارج شوید؟", reply_markup=kb)
+
+        elif data == "confirm_logout":
+            user = await get_user_by_chat(chat_id)
+            if user:
+                await db.users.update_one({"id": user["id"]}, {"$unset": {"telegram_chat_id": ""}})
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton("🔑 ورود مجدد", callback_data="help_login")]])
+            await query.edit_message_text("✅ اکانت شما از ربات قطع شد.", reply_markup=kb)
+
+    # ── Message Handler (for add record flow) ────────────────
+    async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not context.user_data.get("add_step"):
+            return
+        chat_id = update.effective_chat.id
+        user = await get_user_by_chat(chat_id)
         if not user:
+            await send_not_logged_in(update)
+            context.user_data.clear()
             return
-        args = context.args
-        if len(args) < 1:
-            await update.message.reply_text("❌ استفاده: /delete NAME\n\nمثال: /delete mysite")
-            return
-        name = args[0].lower()
-        full_name = f"{name}.{DOMAIN_NAME}" if name != "@" else DOMAIN_NAME
-        record = await db.dns_records.find_one({"user_id": user["id"], "full_name": full_name}, {"_id": 0})
-        if not record:
-            await update.message.reply_text(f"❌ رکورد {full_name} پیدا نشد.")
-            return
-        try:
-            await cf_delete_record(record["cf_record_id"])
-            await db.dns_records.delete_one({"id": record["id"]})
-            await db.users.update_one({"id": user["id"]}, {"$inc": {"record_count": -1}})
-            await log_activity(user["id"], user["email"], "record_deleted", f"{record['record_type']} {full_name} (via Telegram)")
-            await update.message.reply_text(f"✅ رکورد {full_name} حذف شد.")
-        except Exception as e:
-            await update.message.reply_text(f"❌ خطا: {str(e)}")
+
+        text = update.message.text.strip()
+        step = context.user_data.get("add_step")
+
+        if step == "name":
+            name = text.lower().replace(" ", "")
+            if not name or len(name) > 63:
+                await update.message.reply_text("❌ نام نامعتبر. دوباره تلاش کنید:")
+                return
+            context.user_data["add_name"] = name
+            context.user_data["add_step"] = "value"
+            record_type = context.user_data["add_type"]
+            hints = {
+                "A": "آدرس IPv4 را وارد کنید:\nمثال: `1.2.3.4`",
+                "AAAA": "آدرس IPv6 را وارد کنید:\nمثال: `2001:db8::1`",
+                "CNAME": "دامنه مقصد را وارد کنید:\nمثال: `example.com`",
+            }
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ انصراف", callback_data="main_menu")]])
+            await update.message.reply_text(
+                f"✅ نام: `{name}.{DOMAIN_NAME}`\n\n{hints.get(record_type, 'مقدار رکورد:')}",
+                reply_markup=kb, parse_mode="Markdown"
+            )
+
+        elif step == "value":
+            content = text.strip()
+            record_type = context.user_data["add_type"]
+            name = context.user_data["add_name"]
+            full_name = f"{name}.{DOMAIN_NAME}"
+            context.user_data.clear()
+
+            existing = await db.dns_records.find_one({"full_name": full_name, "record_type": record_type})
+            if existing:
+                await update.message.reply_text(
+                    f"❌ رکورد `{full_name}` ({record_type}) قبلاً وجود دارد.",
+                    reply_markup=back_menu_kb(), parse_mode="Markdown"
+                )
+                return
+            try:
+                cf_result = await cf_create_record(name=name, record_type=record_type, content=content)
+                record_id = str(uuid.uuid4())
+                record_doc = {
+                    "id": record_id, "cf_record_id": cf_result["id"], "user_id": user["id"],
+                    "name": name, "full_name": full_name, "record_type": record_type,
+                    "content": content, "ttl": 1, "proxied": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                }
+                await db.dns_records.insert_one(record_doc)
+                await db.users.update_one({"id": user["id"]}, {"$inc": {"record_count": 1}})
+                await log_activity(user["id"], user["email"], "record_created", f"{record_type} {full_name} → {content} (via Telegram)")
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📝 مشاهده رکوردها", callback_data="records"),
+                     InlineKeyboardButton("➕ ساخت دیگر", callback_data="add_start")],
+                    [InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")]
+                ])
+                await update.message.reply_text(
+                    f"✅ رکورد ساخته شد!\n\n"
+                    f"`{record_type}` │ {full_name} → `{content}`",
+                    reply_markup=kb, parse_mode="Markdown"
+                )
+            except Exception as e:
+                await update.message.reply_text(f"❌ خطا: {str(e)}", reply_markup=back_menu_kb())
 
     try:
         telegram_bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
         telegram_bot_app.add_handler(CommandHandler("start", cmd_start))
         telegram_bot_app.add_handler(CommandHandler("login", cmd_login))
-        telegram_bot_app.add_handler(CommandHandler("logout", cmd_logout))
-        telegram_bot_app.add_handler(CommandHandler("status", cmd_status))
-        telegram_bot_app.add_handler(CommandHandler("records", cmd_records))
-        telegram_bot_app.add_handler(CommandHandler("add", cmd_add))
-        telegram_bot_app.add_handler(CommandHandler("delete", cmd_delete))
+        telegram_bot_app.add_handler(CallbackQueryHandler(callback_handler))
+        telegram_bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
 
-        # Set bot commands menu
         commands = [
-            BotCommand("start", "شروع"),
+            BotCommand("start", "منوی اصلی"),
             BotCommand("login", "ورود - /login email password"),
-            BotCommand("records", "لیست رکوردها"),
-            BotCommand("add", "ساخت رکورد - /add TYPE NAME VALUE"),
-            BotCommand("delete", "حذف رکورد - /delete NAME"),
-            BotCommand("status", "وضعیت اکانت"),
-            BotCommand("logout", "قطع اتصال"),
         ]
 
         await telegram_bot_app.initialize()
