@@ -1142,7 +1142,11 @@ async def startup():
             )
     
     logger.info("Database indexes created")
+    
+    # Start Telegram bot
+    await start_telegram_bot()
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    await stop_telegram_bot()
     client.close()
