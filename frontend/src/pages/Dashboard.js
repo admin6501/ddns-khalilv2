@@ -74,6 +74,12 @@ export default function Dashboard() {
   const [referralStats, setReferralStats] = useState(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
+  // Activity log state
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [activityPage, setActivityPage] = useState(1);
+  const [activityPages, setActivityPages] = useState(1);
+  const [activityLoading, setActivityLoading] = useState(false);
+
   const fetchRecords = useCallback(async () => {
     try {
       const res = await dnsAPI.listRecords();
