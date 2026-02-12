@@ -80,6 +80,42 @@ require_root() {
   [[ $EUID -ne 0 ]] && fatal "Run as root: ${C}sudo bash $0${N}"
 }
 
+# ─── Swap Management (for low-RAM servers) ───────────────────────────────────
+SWAP_FILE="/swapfile_build"
+
+ensure_swap() {
+  local TOTAL_RAM_MB=$(free -m | awk '/^Mem:/{print $2}')
+  local TOTAL_SWAP_MB=$(free -m | awk '/^Swap:/{print $2}')
+
+  if (( TOTAL_RAM_MB + TOTAL_SWAP_MB >= 2500 )); then
+    return 0
+  fi
+
+  local SWAP_SIZE_MB=2048
+  info "RAM: ${TOTAL_RAM_MB}MB, Swap: ${TOTAL_SWAP_MB}MB — creating ${SWAP_SIZE_MB}MB swap for build..."
+
+  if [[ -f "$SWAP_FILE" ]]; then
+    swapoff "$SWAP_FILE" 2>/dev/null
+    rm -f "$SWAP_FILE"
+  fi
+
+  dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$SWAP_SIZE_MB status=none 2>/dev/null
+  chmod 600 "$SWAP_FILE"
+  mkswap "$SWAP_FILE" >/dev/null 2>&1
+  swapon "$SWAP_FILE" 2>/dev/null
+
+  local NEW_SWAP=$(free -m | awk '/^Swap:/{print $2}')
+  success "Swap active: ${NEW_SWAP}MB total"
+}
+
+cleanup_swap() {
+  if [[ -f "$SWAP_FILE" ]]; then
+    swapoff "$SWAP_FILE" 2>/dev/null
+    rm -f "$SWAP_FILE"
+    info "Temporary build swap removed"
+  fi
+}
+
 # ─── OS Detection ────────────────────────────────────────────────────────────
 detect_os() {
   [[ -f /etc/os-release ]] && . /etc/os-release || fatal "Cannot detect OS"
