@@ -1014,11 +1014,13 @@ do_telegram_config() {
         sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=${NEW_TOKEN}|" "$ENV_FILE"
         success "Token updated"
         info "Restarting backend..."
+        clear_bot_lock
         systemctl restart ${SERVICE_NAME} 2>/dev/null
         success "Done! Bot should be active now."
         ;;
       2)
         sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=|" "$ENV_FILE"
+        clear_bot_lock
         success "Telegram bot disabled"
         systemctl restart ${SERVICE_NAME} 2>/dev/null
         ;;
