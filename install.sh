@@ -1242,6 +1242,8 @@ main() {
     status)    load_config; do_status; exit 0 ;;
     logs)      load_config; do_logs; exit 0 ;;
     update)    load_config; do_update; exit 0 ;;
+    export)    show_banner; load_config; do_export; exit 0 ;;
+    import)    show_banner; load_config; do_import; exit 0 ;;
     *)
       # Interactive menu loop
       while true; do
