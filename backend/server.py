@@ -895,6 +895,7 @@ async def admin_get_activity_logs(page: int = 1, limit: int = 50, user_id: Optio
 # ============== TELEGRAM BOT ==============
 
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_ADMIN_ID = os.environ.get('TELEGRAM_ADMIN_ID', '')
 telegram_bot_app = None
 
 async def start_telegram_bot():
