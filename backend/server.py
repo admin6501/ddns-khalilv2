@@ -1026,6 +1026,7 @@ async def start_telegram_bot():
 
     # ── /start ───────────────────────────────────────────────
     async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        context.user_data.clear()
         chat_id = update.effective_chat.id
         user = await get_user_by_chat(chat_id)
         lang = get_lang(user)
