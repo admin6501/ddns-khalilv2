@@ -13,6 +13,7 @@ import {
 } from '../components/ui/dropdown-menu';
 import { Globe, Sun, Moon, Languages, Menu, X, LogOut, LayoutDashboard, User, Crown } from 'lucide-react';
 import { DOMAIN } from '../config/site';
+import { useConfig } from '../contexts/ConfigContext';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -20,6 +21,8 @@ export default function Navbar() {
   const { t, lang, toggleLang } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
+  const config = useConfig();
+  const DNS_DOMAIN = config.dns_domain || DOMAIN;
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleLogout = () => {
