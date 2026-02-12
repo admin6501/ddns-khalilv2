@@ -1369,6 +1369,16 @@ async def start_telegram_bot():
     def admin_back_kb(lang="fa"):
         return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 " + t(lang, "btn_admin").replace("🛡 ", ""), callback_data="adm_panel")]])
 
+    def prelogin_kb(lang, chat_id):
+        """Keyboard for non-logged-in users (login + lang + admin if applicable)."""
+        rows = [
+            [InlineKeyboardButton(t(lang, "btn_login"), callback_data="help_login")],
+            [InlineKeyboardButton(t(lang, "btn_lang"), callback_data="toggle_lang_prelogin")]
+        ]
+        if is_admin_chat(chat_id):
+            rows.insert(1, [InlineKeyboardButton(t(lang, "btn_admin"), callback_data="adm_panel")])
+        return InlineKeyboardMarkup(rows)
+
     def back_menu_kb(lang="fa"):
         return InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")]])
 
