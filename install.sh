@@ -672,6 +672,7 @@ do_start() {
   systemctl is-active --quiet mongod && success "MongoDB $(get_service_status mongod)" || warn "MongoDB issue"
 
   info "Starting Backend..."
+  clear_bot_lock
   systemctl start ${SERVICE_NAME} 2>/dev/null
   sleep 2
   systemctl is-active --quiet ${SERVICE_NAME} && success "Backend $(get_service_status ${SERVICE_NAME})" || warn "Backend issue"
