@@ -286,7 +286,7 @@ async def register(user_data: UserRegister):
         "plan": "free",
         "role": "user",
         "record_count": 0,
-        "record_limit": PLAN_LIMITS["free"],
+        "record_limit": default_free,
         "referral_code": ref_code,
         "referred_by": None,
         "referral_count": 0,
@@ -301,7 +301,6 @@ async def register(user_data: UserRegister):
             user_doc["referred_by"] = referrer["id"]
             
             # Get bonus amount from settings
-            settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
             bonus = (settings or {}).get("referral_bonus_per_invite", 1)
             
             # Give referrer bonus records
