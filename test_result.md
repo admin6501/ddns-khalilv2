@@ -14,7 +14,14 @@ Fix Telegram bot not responding after installation via install.sh script. Multip
    - Better verification: Retries if polling is not running after start
 5. **Improved bot shutdown in `server.py`**: Added flush of stale connections after stopping
 
-## Test Results
+## Changes Made (Round 3 - Language Flow Fix)
+6. **Fixed bot language flow**: 
+   - First /start → Only shows language selection (no login button)
+   - After language selected → Shows welcome + login button
+   - Language persisted in MongoDB `telegram_prefs` collection (survives bot restarts)
+   - Subsequent /start → Language preserved, shows login directly
+   - Language change available via toggle button for non-logged-in and logged-in users
+7. **Fixed user_data clearing**: Only clears flow-specific data (login_step, add_step), preserves language
 
 ### Backend Tests - ✅ COMPLETED
 - [x] Backend starts without errors ✅ **PASSED** - All services running, no errors in logs
