@@ -228,11 +228,11 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-4 text-center space-y-3">
           <div className="flex items-center justify-center gap-2">
             <Globe className="w-5 h-5 text-primary" />
-            <span className={`text-lg font-bold ${lang === 'en' ? 'font-en-heading' : 'font-fa'}`}>{DOMAIN}</span>
+            <span className={`text-lg font-bold ${lang === 'en' ? 'font-en-heading' : 'font-fa'}`}>{DNS_DOMAIN}</span>
           </div>
           <p className="text-sm text-muted-foreground">{t('footer_desc')}</p>
           <p className="text-xs text-muted-foreground">
-            &copy; {new Date().getFullYear()} {DOMAIN}. {t('footer_rights')}
+            &copy; {new Date().getFullYear()} {DNS_DOMAIN}. {t('footer_rights')}
           </p>
         </div>
       </footer>
