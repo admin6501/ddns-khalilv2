@@ -67,7 +67,7 @@ export default function Navbar() {
           <Link to="/" className="flex items-center gap-2 group" data-testid="navbar-logo">
             <Globe className="w-6 h-6 text-primary group-hover:rotate-12 transition-transform duration-300" />
             <span className={`text-lg font-bold ${lang === 'en' ? 'font-en-heading' : 'font-fa'}`}>
-              {DOMAIN}
+              {DNS_DOMAIN}
             </span>
           </Link>
 
