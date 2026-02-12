@@ -927,7 +927,7 @@ export default function Admin() {
               <Label>{t('form_subdomain')}</Label>
               <div className="flex items-center gap-2">
                 <Input value={createRecordForm.name} onChange={(e) => setCreateRecordForm(p => ({ ...p, name: e.target.value }))} placeholder="mysite" data-testid="admin-create-subdomain-input" />
-                <span className="text-sm text-muted-foreground whitespace-nowrap">.{DOMAIN}</span>
+                <span className="text-sm text-muted-foreground whitespace-nowrap">.{DNS_DOMAIN}</span>
               </div>
             </div>
             <div className="space-y-2">
