@@ -373,6 +373,84 @@ export default function Admin() {
     finally { setSettingsSaving(false); }
   };
 
+  // === Bot Management ===
+  const handleSaveBotToken = async () => {
+    setBotActionLoading('token');
+    try {
+      await adminAPI.updateBotToken(newBotToken);
+      toast.success(t('admin_bot_token_updated'));
+      setNewBotToken('');
+      setShowTokenInput(false);
+      setTimeout(() => fetchBotStatus(), 3000);
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
+    finally { setBotActionLoading(''); }
+  };
+
+  const handleClearBotToken = async () => {
+    setBotActionLoading('clear');
+    try {
+      await adminAPI.updateBotToken('');
+      toast.success(t('admin_bot_stopped_msg'));
+      setNewBotToken('');
+      setShowTokenInput(false);
+      setTimeout(() => fetchBotStatus(), 2000);
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
+    finally { setBotActionLoading(''); }
+  };
+
+  const handleSaveAdminId = async () => {
+    setBotActionLoading('admin');
+    try {
+      await adminAPI.updateBotAdminId(newAdminId);
+      toast.success(t('admin_bot_admin_updated'));
+      fetchBotStatus();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
+    finally { setBotActionLoading(''); }
+  };
+
+  const handleStopBot = async () => {
+    setBotActionLoading('stop');
+    try {
+      await adminAPI.stopBot();
+      toast.success(t('admin_bot_stopped_msg'));
+      setTimeout(() => fetchBotStatus(), 1000);
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
+    finally { setBotActionLoading(''); }
+  };
+
+  const handleStartBot = async () => {
+    setBotActionLoading('start');
+    try {
+      await adminAPI.startBot();
+      toast.success(t('admin_bot_started'));
+      setTimeout(() => fetchBotStatus(), 5000);
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
+    finally { setBotActionLoading(''); }
+  };
+
+  // === Zones ===
+  const handleAddZone = async () => {
+    if (!newZoneId.trim()) return;
+    setAddZoneLoading(true);
+    try {
+      await adminAPI.addZone(newZoneId.trim(), newZoneToken.trim());
+      toast.success(t('admin_zone_added'));
+      setNewZoneId('');
+      setNewZoneToken('');
+      setShowAddZone(false);
+      fetchZones();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed to add zone'); }
+    finally { setAddZoneLoading(false); }
+  };
+
+  const handleRemoveZone = async (zoneId) => {
+    try {
+      await adminAPI.removeZone(zoneId);
+      toast.success(t('admin_zone_removed'));
+      fetchZones();
+    } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
+  };
+
   const planColors = {
     free: 'bg-muted text-muted-foreground',
     pro: 'bg-primary/10 text-primary border-primary/20',
