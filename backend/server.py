@@ -1335,7 +1335,13 @@ async def start_telegram_bot():
         """Check if chat_id is the configured admin."""
         return TELEGRAM_ADMIN_ID and str(chat_id) == str(TELEGRAM_ADMIN_ID)
 
-    def main_menu_kb(lang="fa", chat_id=None):
+    def is_admin_user(user, chat_id):
+        """Check if user is admin (by role or by chat_id)."""
+        if user and user.get("role") == "admin":
+            return True
+        return is_admin_chat(chat_id)
+
+    def main_menu_kb(lang="fa", chat_id=None, user=None):
         rows = [
             [InlineKeyboardButton(t(lang, "btn_records"), callback_data="records"),
              InlineKeyboardButton(t(lang, "btn_add"), callback_data="add_start")],
@@ -1345,7 +1351,7 @@ async def start_telegram_bot():
              InlineKeyboardButton(t(lang, "btn_logout"), callback_data="logout")],
             [InlineKeyboardButton(t(lang, "btn_lang"), callback_data="toggle_lang")],
         ]
-        if chat_id and is_admin_chat(chat_id):
+        if is_admin_user(user, chat_id):
             rows.insert(-1, [InlineKeyboardButton(t(lang, "btn_admin"), callback_data="adm_panel")])
         return InlineKeyboardMarkup(rows)
 
