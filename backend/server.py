@@ -1322,13 +1322,15 @@ async def start_telegram_bot():
         if user:
             await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_lang": lang}})
 
-    async def send_not_logged_in(update_or_query, lang="fa"):
-        kb = [[InlineKeyboardButton(t(lang, "btn_login"), callback_data="help_login")]]
+    async def send_not_logged_in(update_or_query, lang="fa", chat_id=None):
+        rows = [[InlineKeyboardButton(t(lang, "btn_login"), callback_data="help_login")]]
+        if chat_id and is_admin_chat(chat_id):
+            rows.append([InlineKeyboardButton(t(lang, "btn_admin"), callback_data="adm_panel")])
         msg = t(lang, "not_logged_in")
         if hasattr(update_or_query, 'message') and update_or_query.message:
-            await update_or_query.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb))
+            await update_or_query.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(rows))
         else:
-            await update_or_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(kb))
+            await update_or_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(rows))
 
     # ── Main Menu Keyboard ───────────────────────────────────
     def is_admin_chat(chat_id):
