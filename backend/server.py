@@ -1225,7 +1225,7 @@ async def start_telegram_bot():
                 return
             buttons = []
             for r in records:
-                label = f"🗑 {r['record_type']} | {r['name']}.{DOMAIN_NAME}"
+                label = f"🗑 {r['record_type']} | {r['name']}.{CF_ZONE_DOMAIN}"
                 buttons.append([InlineKeyboardButton(label, callback_data=f"del_{r['id']}")])
             buttons.append([InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")])
             await query.edit_message_text(t(lang, "delete_title"), reply_markup=InlineKeyboardMarkup(buttons), parse_mode="Markdown")
