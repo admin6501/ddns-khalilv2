@@ -1512,7 +1512,7 @@ async def start_telegram_bot():
             if update and hasattr(update, 'effective_chat') and update.effective_chat:
                 chat_id = update.effective_chat.id
                 user = await get_user_by_chat(chat_id)
-                lang = get_lang(user) if user else "fa"
+                lang = user.get("telegram_lang", "fa") if user else context.user_data.get("lang", "fa")
                 error_msg = t(lang, "error", err="Internal error. Please try /start again.")
                 await context.bot.send_message(chat_id=chat_id, text=error_msg)
         except Exception:
