@@ -1046,27 +1046,13 @@ async def start_telegram_bot():
                 reply_markup=kb
             )
 
-    # ── /login ───────────────────────────────────────────────
+    # ── /login (redirect to button flow) ───────────────────
     async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        args = context.args
+        context.user_data.clear()
         lang = context.user_data.get("lang", "fa")
-        if len(args) < 2:
-            await update.message.reply_text(t(lang, "login_usage"), parse_mode="Markdown")
-            return
-        email, password = args[0], args[1]
-        user = await db.users.find_one({"email": email}, {"_id": 0})
-        if not user or not verify_password(password, user["password_hash"]):
-            await update.message.reply_text(t(lang, "login_fail"), reply_markup=back_menu_kb(lang))
-            return
-        chat_id = str(update.effective_chat.id)
-        bot_lang = context.user_data.get("lang", "fa")
-        await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_chat_id": chat_id, "telegram_lang": bot_lang}})
-        await log_activity(user["id"], user["email"], "telegram_linked", f"Telegram linked: {chat_id}")
-        lang = bot_lang
-        await update.message.reply_text(
-            t(lang, "login_success", name=user['name'], email=email),
-            reply_markup=main_menu_kb(lang)
-        )
+        context.user_data["login_step"] = "email"
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="main_menu")]])
+        await update.message.reply_text(t(lang, "help_login_body"), reply_markup=kb)
 
     # ── Callback Handler ─────────────────────────────────────
     async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
