@@ -907,6 +907,317 @@ do_ssl_renew() {
   pause_menu
 }
 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  E) EXPORT — Backup data for migration
+# ═══════════════════════════════════════════════════════════════════════════════
+do_export() {
+  is_installed || { fail "Not installed. Nothing to export."; pause_menu; return; }
+
+  step "Export / Backup"
+
+  # Read DB info from backend .env
+  local EXPORT_MONGO_URL EXPORT_DB_NAME
+  if [[ -f "${INSTALL_DIR}/backend/.env" ]]; then
+    EXPORT_MONGO_URL=$(grep "^MONGO_URL=" "${INSTALL_DIR}/backend/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'")
+    EXPORT_DB_NAME=$(grep "^DB_NAME=" "${INSTALL_DIR}/backend/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'")
+  fi
+  EXPORT_MONGO_URL="${EXPORT_MONGO_URL:-mongodb://localhost:27017}"
+  EXPORT_DB_NAME="${EXPORT_DB_NAME:-dns_management}"
+
+  local TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+  local EXPORT_DIR="/tmp/ddns-export-${TIMESTAMP}"
+  local EXPORT_FILE="${HOME}/ddns-backup-${TIMESTAMP}.tar.gz"
+
+  mkdir -p "$EXPORT_DIR"
+
+  # ─── 1. Export MongoDB ─────────────────────────────────────
+  info "Exporting MongoDB database: ${C}${EXPORT_DB_NAME}${N}..."
+
+  if command -v mongodump &>/dev/null; then
+    mongodump --uri="$EXPORT_MONGO_URL" --db="$EXPORT_DB_NAME" --out="$EXPORT_DIR/mongodb" --quiet 2>/dev/null \
+      && success "MongoDB dump complete" \
+      || { fail "mongodump failed"; rm -rf "$EXPORT_DIR"; pause_menu; return; }
+  elif command -v mongosh &>/dev/null; then
+    # Fallback: export as JSON using mongosh
+    info "mongodump not found, using mongosh JSON export..."
+    mkdir -p "$EXPORT_DIR/mongodb_json"
+    local collections=("users" "dns_records" "settings" "plans")
+    for col in "${collections[@]}"; do
+      mongosh --quiet "${EXPORT_MONGO_URL}/${EXPORT_DB_NAME}" --eval "JSON.stringify(db.${col}.find({}).toArray())" 2>/dev/null > "$EXPORT_DIR/mongodb_json/${col}.json" \
+        && success "Exported collection: ${col}" \
+        || warn "Could not export collection: ${col}"
+    done
+  elif command -v mongo &>/dev/null; then
+    info "mongodump not found, using mongo JSON export..."
+    mkdir -p "$EXPORT_DIR/mongodb_json"
+    local collections=("users" "dns_records" "settings" "plans")
+    for col in "${collections[@]}"; do
+      mongo --quiet "${EXPORT_MONGO_URL}/${EXPORT_DB_NAME}" --eval "JSON.stringify(db.${col}.find({}).toArray())" 2>/dev/null > "$EXPORT_DIR/mongodb_json/${col}.json" \
+        && success "Exported collection: ${col}" \
+        || warn "Could not export collection: ${col}"
+    done
+  else
+    fail "No MongoDB tools found (mongodump/mongosh/mongo). Install mongodb-database-tools."
+    rm -rf "$EXPORT_DIR"
+    pause_menu
+    return
+  fi
+
+  # ─── 2. Copy .env files ───────────────────────────────────
+  info "Backing up configuration..."
+  mkdir -p "$EXPORT_DIR/config"
+
+  [[ -f "${INSTALL_DIR}/backend/.env" ]] && cp "${INSTALL_DIR}/backend/.env" "$EXPORT_DIR/config/backend.env" && success "Backend .env saved"
+  [[ -f "${INSTALL_DIR}/frontend/.env" ]] && cp "${INSTALL_DIR}/frontend/.env" "$EXPORT_DIR/config/frontend.env" && success "Frontend .env saved"
+  [[ -f "$CONFIG_FILE" ]] && cp "$CONFIG_FILE" "$EXPORT_DIR/config/install.conf" && success "Install config saved"
+
+  # ─── 3. Save metadata ─────────────────────────────────────
+  cat > "$EXPORT_DIR/metadata.txt" << EOF
+export_date=$(date -Iseconds)
+domain=${DOMAIN}
+db_name=${EXPORT_DB_NAME}
+install_dir=${INSTALL_DIR}
+hostname=$(hostname)
+os=$(. /etc/os-release && echo "$PRETTY_NAME")
+EOF
+  success "Metadata saved"
+
+  # ─── 4. Create archive ────────────────────────────────────
+  info "Creating archive..."
+  tar -czf "$EXPORT_FILE" -C /tmp "ddns-export-${TIMESTAMP}" 2>/dev/null \
+    && success "Archive created" \
+    || { fail "Archive creation failed"; rm -rf "$EXPORT_DIR"; pause_menu; return; }
+
+  # Cleanup temp
+  rm -rf "$EXPORT_DIR"
+
+  local FILE_SIZE=$(du -h "$EXPORT_FILE" | cut -f1)
+
+  echo ""
+  draw_line "$G"
+  echo -e "  ${G}${B}Export Complete!${N}"
+  draw_line "$G"
+  echo ""
+  echo -e "  ${B}File:${N}     ${C}${EXPORT_FILE}${N}"
+  echo -e "  ${B}Size:${N}     ${C}${FILE_SIZE}${N}"
+  echo -e "  ${B}Domain:${N}   ${C}${DOMAIN}${N}"
+  echo -e "  ${B}Database:${N} ${C}${EXPORT_DB_NAME}${N}"
+  echo ""
+  echo -e "  ${B}Transfer to new server:${N}"
+  echo -e "  ${D}  scp ${EXPORT_FILE} root@NEW_SERVER_IP:~/${N}"
+  echo ""
+  echo -e "  ${B}Then on new server:${N}"
+  echo -e "  ${D}  1. Run install.sh and choose Install${N}"
+  echo -e "  ${D}  2. After install, choose Import and provide the backup file path${N}"
+  echo ""
+  draw_line "$G"
+  echo ""
+
+  pause_menu
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  I) IMPORT — Restore data from backup
+# ═══════════════════════════════════════════════════════════════════════════════
+do_import() {
+  is_installed || { fail "Not installed. Run Install first, then Import."; pause_menu; return; }
+
+  step "Import / Restore"
+
+  echo ""
+  clean_read IMPORT_FILE "Path to backup file (e.g. ~/ddns-backup-*.tar.gz): "
+  [[ -z "$IMPORT_FILE" ]] && { fail "No file specified."; pause_menu; return; }
+
+  # Expand ~ to $HOME
+  IMPORT_FILE="${IMPORT_FILE/#\~/$HOME}"
+
+  [[ ! -f "$IMPORT_FILE" ]] && { fail "File not found: ${R}$IMPORT_FILE${N}"; pause_menu; return; }
+
+  # Read current DB info
+  local IMPORT_MONGO_URL IMPORT_DB_NAME
+  if [[ -f "${INSTALL_DIR}/backend/.env" ]]; then
+    IMPORT_MONGO_URL=$(grep "^MONGO_URL=" "${INSTALL_DIR}/backend/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'")
+    IMPORT_DB_NAME=$(grep "^DB_NAME=" "${INSTALL_DIR}/backend/.env" 2>/dev/null | cut -d= -f2- | tr -d '"' | tr -d "'")
+  fi
+  IMPORT_MONGO_URL="${IMPORT_MONGO_URL:-mongodb://localhost:27017}"
+  IMPORT_DB_NAME="${IMPORT_DB_NAME:-dns_management}"
+
+  # Extract archive
+  local EXTRACT_DIR="/tmp/ddns-import-$$"
+  mkdir -p "$EXTRACT_DIR"
+
+  info "Extracting archive..."
+  tar -xzf "$IMPORT_FILE" -C "$EXTRACT_DIR" 2>/dev/null || { fail "Failed to extract archive."; rm -rf "$EXTRACT_DIR"; pause_menu; return; }
+
+  # Find the extracted folder
+  local DATA_DIR=$(find "$EXTRACT_DIR" -maxdepth 1 -type d -name "ddns-export-*" | head -1)
+  [[ -z "$DATA_DIR" ]] && DATA_DIR="$EXTRACT_DIR"
+
+  # Show metadata
+  if [[ -f "$DATA_DIR/metadata.txt" ]]; then
+    echo ""
+    echo -e "  ${B}Backup Info:${N}"
+    while IFS='=' read -r key val; do
+      [[ -n "$key" && -n "$val" ]] && printf "    ${D}%-14s${N} %s\n" "$key:" "$val"
+    done < "$DATA_DIR/metadata.txt"
+    echo ""
+  fi
+
+  # Ask what to restore
+  echo -e "  ${B}What to restore:${N}"
+  echo -e "    ${C}1${N}) Database + Config  ${D}(recommended — full restore)${N}"
+  echo -e "    ${C}2${N}) Database only      ${D}(keep current .env config)${N}"
+  echo -e "    ${C}3${N}) Config only        ${D}(keep current database)${N}"
+  echo ""
+  clean_read restore_mode "Select [1]: " "1"
+
+  local do_db=false do_conf=false
+  case "$restore_mode" in
+    2) do_db=true ;;
+    3) do_conf=true ;;
+    *) do_db=true; do_conf=true ;;
+  esac
+
+  # ─── Confirm ──────────────────────────────────────────────
+  echo ""
+  warn "This will ${R}overwrite${N} existing data!"
+  confirm "Proceed with restore? Y/n" "Y" || { info "Cancelled."; rm -rf "$EXTRACT_DIR"; pause_menu; return; }
+
+  # ─── Stop services ────────────────────────────────────────
+  info "Stopping backend..."
+  systemctl stop ${SERVICE_NAME} 2>/dev/null
+  sleep 1
+
+  # ─── Restore Database ─────────────────────────────────────
+  if $do_db; then
+    step "Restoring Database"
+
+    if [[ -d "$DATA_DIR/mongodb" ]]; then
+      # mongodump format
+      info "Restoring MongoDB dump..."
+
+      # Find the DB folder inside the dump
+      local DUMP_DB_DIR=$(find "$DATA_DIR/mongodb" -maxdepth 1 -type d ! -name "mongodb" | head -1)
+      local SOURCE_DB_NAME=$(basename "$DUMP_DB_DIR" 2>/dev/null)
+
+      if [[ -n "$DUMP_DB_DIR" && -d "$DUMP_DB_DIR" ]]; then
+        if command -v mongorestore &>/dev/null; then
+          # Drop existing and restore
+          mongorestore --uri="$IMPORT_MONGO_URL" --db="$IMPORT_DB_NAME" --dir="$DUMP_DB_DIR" --drop --quiet 2>/dev/null \
+            && success "Database restored from mongodump (${SOURCE_DB_NAME} → ${IMPORT_DB_NAME})" \
+            || fail "mongorestore failed"
+        else
+          fail "mongorestore not found. Install: apt install mongodb-database-tools"
+        fi
+      else
+        warn "No database folder found in dump"
+      fi
+
+    elif [[ -d "$DATA_DIR/mongodb_json" ]]; then
+      # JSON format
+      info "Restoring from JSON export..."
+
+      local SHELL_CMD=""
+      command -v mongosh &>/dev/null && SHELL_CMD="mongosh" || { command -v mongo &>/dev/null && SHELL_CMD="mongo"; }
+
+      if [[ -n "$SHELL_CMD" ]]; then
+        for json_file in "$DATA_DIR/mongodb_json"/*.json; do
+          local col_name=$(basename "$json_file" .json)
+          local doc_count=$(python3 -c "import json; data=json.load(open('$json_file')); print(len(data))" 2>/dev/null || echo "?")
+
+          # Drop and insert
+          $SHELL_CMD --quiet "${IMPORT_MONGO_URL}/${IMPORT_DB_NAME}" --eval "db.${col_name}.drop()" 2>/dev/null
+
+          if [[ "$doc_count" != "0" && "$doc_count" != "?" ]]; then
+            # Use mongoimport if available
+            if command -v mongoimport &>/dev/null; then
+              mongoimport --uri="${IMPORT_MONGO_URL}" --db="${IMPORT_DB_NAME}" --collection="${col_name}" --jsonArray --file="$json_file" --quiet 2>/dev/null \
+                && success "Restored: ${col_name} (${doc_count} docs)" \
+                || warn "Failed to restore: ${col_name}"
+            else
+              # Fallback: insert via shell
+              $SHELL_CMD --quiet "${IMPORT_MONGO_URL}/${IMPORT_DB_NAME}" --eval "
+                var data = $(cat "$json_file");
+                if (data.length > 0) { db.${col_name}.insertMany(data); }
+              " 2>/dev/null \
+                && success "Restored: ${col_name} (${doc_count} docs)" \
+                || warn "Failed to restore: ${col_name}"
+            fi
+          else
+            info "Skipped empty collection: ${col_name}"
+          fi
+        done
+      else
+        fail "No MongoDB shell found (mongosh/mongo)"
+      fi
+    else
+      warn "No database backup found in archive"
+    fi
+  fi
+
+  # ─── Restore Config ───────────────────────────────────────
+  if $do_conf; then
+    step "Restoring Configuration"
+
+    if [[ -f "$DATA_DIR/config/backend.env" ]]; then
+      # Preserve current MONGO_URL (might be different on new server)
+      local current_mongo=$(grep "^MONGO_URL=" "${INSTALL_DIR}/backend/.env" 2>/dev/null)
+
+      cp "$DATA_DIR/config/backend.env" "${INSTALL_DIR}/backend/.env"
+
+      # If user wants to keep local MongoDB URL
+      if [[ -n "$current_mongo" ]]; then
+        echo ""
+        info "Backup has MongoDB URL: $(grep '^MONGO_URL=' "$DATA_DIR/config/backend.env" | cut -d= -f2-)"
+        info "Current server has:     $(echo "$current_mongo" | cut -d= -f2-)"
+        confirm "Keep current server's MongoDB URL? Y/n" "Y" && {
+          sed -i "s|^MONGO_URL=.*|${current_mongo}|" "${INSTALL_DIR}/backend/.env"
+          success "Kept current MongoDB URL"
+        }
+      fi
+
+      success "Backend .env restored"
+    else
+      warn "No backend .env found in backup"
+    fi
+
+    if [[ -f "$DATA_DIR/config/frontend.env" ]]; then
+      cp "$DATA_DIR/config/frontend.env" "${INSTALL_DIR}/frontend/.env"
+      success "Frontend .env restored"
+
+      # Rebuild frontend with new config
+      info "Rebuilding frontend with restored config..."
+      cd "${INSTALL_DIR}/frontend"
+      yarn build 2>/dev/null || yarn build || warn "Frontend build failed"
+      success "Frontend rebuilt"
+    fi
+  fi
+
+  # ─── Restart ──────────────────────────────────────────────
+  info "Starting services..."
+  systemctl start ${SERVICE_NAME} 2>/dev/null
+  sleep 2
+  systemctl reload nginx 2>/dev/null
+
+  # Cleanup
+  rm -rf "$EXTRACT_DIR"
+
+  echo ""
+  draw_line "$G"
+  echo -e "  ${G}${B}Import Complete!${N}"
+  draw_line "$G"
+  echo ""
+  $do_db && echo -e "  ${G}✓${N} Database restored"
+  $do_conf && echo -e "  ${G}✓${N} Configuration restored"
+  echo ""
+  [[ -n "$DOMAIN" ]] && echo -e "  ${B}Site:${N}  ${C}https://${DOMAIN}${N}"
+  echo ""
+  draw_line "$G"
+  echo ""
+
+  pause_menu
+}
+
 # ─── Pause ───────────────────────────────────────────────────────────────────
 pause_menu() {
   echo ""
