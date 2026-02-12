@@ -2075,24 +2075,24 @@ async def start_telegram_bot():
         if adm_edit_step == "value":
             adm_user = await get_user_by_chat(chat_id)
             if is_admin_user(adm_user, chat_id):
-            field = context.user_data.get("adm_edit_field", "")
-            context.user_data.pop("adm_edit_step", None)
-            context.user_data.pop("adm_edit_field", None)
-            value = text
-            # Convert numeric fields
-            if field in ("referral_bonus_per_invite", "default_free_records"):
-                try:
-                    value = int(value)
-                except ValueError:
-                    await update.message.reply_text("❌ Must be a number", reply_markup=admin_back_kb(lang))
-                    return
-            await db.settings.update_one({"key": "site_settings"}, {"$set": {field: value}}, upsert=True)
-            await update.message.reply_text(
-                t(lang, "admin_setting_updated", field=field),
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙", callback_data="adm_settings")]]),
-                parse_mode="Markdown"
-            )
-            return
+                field = context.user_data.get("adm_edit_field", "")
+                context.user_data.pop("adm_edit_step", None)
+                context.user_data.pop("adm_edit_field", None)
+                value = text
+                # Convert numeric fields
+                if field in ("referral_bonus_per_invite", "default_free_records"):
+                    try:
+                        value = int(value)
+                    except ValueError:
+                        await update.message.reply_text("❌ Must be a number", reply_markup=admin_back_kb(lang))
+                        return
+                await db.settings.update_one({"key": "site_settings"}, {"$set": {field: value}}, upsert=True)
+                await update.message.reply_text(
+                    t(lang, "admin_setting_updated", field=field),
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙", callback_data="adm_settings")]]),
+                    parse_mode="Markdown"
+                )
+                return
 
         # ── Add Record Flow ──
         if not context.user_data.get("add_step"):
