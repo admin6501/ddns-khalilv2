@@ -72,6 +72,16 @@ export const adminAPI = {
   createPlan: (data) => api.post('/admin/plans', data),
   updatePlan: (plan_id, data) => api.put(`/admin/plans/${plan_id}`, data),
   deletePlan: (plan_id) => api.delete(`/admin/plans/${plan_id}`),
+  // Bot management
+  getBotStatus: () => api.get('/admin/bot/status'),
+  updateBotToken: (token) => api.put('/admin/bot/token', { token }),
+  updateBotAdminId: (admin_id) => api.put('/admin/bot/admin-id', { admin_id }),
+  stopBot: () => api.post('/admin/bot/stop'),
+  startBot: () => api.post('/admin/bot/start'),
+  // Zones management
+  listZones: () => api.get('/admin/zones'),
+  addZone: (zone_id, api_token) => api.post('/admin/zones', { zone_id, api_token }),
+  removeZone: (zone_id) => api.delete(`/admin/zones/${zone_id}`),
 };
 
 // Contact
