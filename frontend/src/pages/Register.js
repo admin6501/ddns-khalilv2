@@ -23,6 +23,13 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    
+    // Gmail-only validation
+    if (!email.toLowerCase().endsWith('@gmail.com')) {
+      setError(lang === 'fa' ? 'فقط ایمیل‌های جیمیل (@gmail.com) مجاز هستند.' : 'Only Gmail addresses (@gmail.com) are allowed.');
+      return;
+    }
+    
     setLoading(true);
     try {
       await register(name, email, password, refCode);
