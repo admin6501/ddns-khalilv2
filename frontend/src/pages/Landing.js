@@ -71,12 +71,12 @@ export default function Landing() {
           <div className="text-center space-y-6 animate-fade-in-up">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium border border-primary/20" data-testid="hero-badge">
               <Globe className="w-4 h-4" />
-              <span>{DOMAIN}</span>
+              <span>{DNS_DOMAIN}</span>
             </div>
             
             <h1 className={`text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight ${lang === 'en' ? 'font-en-heading' : 'font-fa'}`} data-testid="hero-title">
               {t('hero_title')}{' '}
-              <span className="text-primary">{DOMAIN}</span>
+              <span className="text-primary">{DNS_DOMAIN}</span>
             </h1>
             
             <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto" data-testid="hero-subtitle">
