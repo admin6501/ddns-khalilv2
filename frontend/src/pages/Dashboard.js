@@ -98,10 +98,22 @@ export default function Dashboard() {
     } catch { /* ignore */ }
   }, []);
 
+  const fetchActivityLogs = useCallback(async (page = 1) => {
+    setActivityLoading(true);
+    try {
+      const res = await activityAPI.getLogs(page, 10);
+      setActivityLogs(res.data.logs || []);
+      setActivityPages(res.data.pages || 1);
+      setActivityPage(res.data.page || 1);
+    } catch { /* ignore */ }
+    setActivityLoading(false);
+  }, []);
+
   useEffect(() => {
     fetchRecords();
     fetchReferralStats();
-  }, [fetchRecords, fetchReferralStats]);
+    fetchActivityLogs();
+  }, [fetchRecords, fetchReferralStats, fetchActivityLogs]);
 
   const referralLink = `${window.location.origin}/register?ref=${user?.referral_code || ''}`;
 
