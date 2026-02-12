@@ -11,7 +11,7 @@ import time
 from typing import Dict, Any
 
 # Configuration
-BASE_URL = "https://bot-activation-bug.preview.emergentagent.com/api"
+BASE_URL = "https://telegram-deploy-auto.preview.emergentagent.com/api"
 TIMEOUT = 30
 
 class BackendTester:
