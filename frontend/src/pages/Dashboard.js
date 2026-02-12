@@ -46,11 +46,14 @@ import {
   AlertTriangle, RefreshCw, Gift, Copy, Check as CheckIcon, Users, Clock
 } from 'lucide-react';
 import { DOMAIN } from '../config/site';
+import { useConfig } from '../contexts/ConfigContext';
 
 export default function Dashboard() {
   const { t, lang } = useLanguage();
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
+  const config = useConfig();
+  const DNS_DOMAIN = config.dns_domain || DOMAIN;
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
