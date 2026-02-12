@@ -43,6 +43,13 @@ export default function Admin() {
   const [selectedPlan, setSelectedPlan] = useState('free');
   const [planLoading, setPlanLoading] = useState(false);
 
+  // Activity log state
+  const [adminLogs, setAdminLogs] = useState([]);
+  const [adminLogPage, setAdminLogPage] = useState(1);
+  const [adminLogPages, setAdminLogPages] = useState(1);
+  const [adminLogLoading, setAdminLogLoading] = useState(false);
+  const [adminLogFilter, setAdminLogFilter] = useState('');
+
   // Password
   const [passwordDialogUser, setPasswordDialogUser] = useState(null);
   const [newPassword, setNewPassword] = useState('');
