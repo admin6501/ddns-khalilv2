@@ -1039,6 +1039,26 @@ async def start_telegram_bot():
     async def get_user_by_chat(chat_id):
         return await db.users.find_one({"telegram_chat_id": str(chat_id)}, {"_id": 0})
 
+    # ── Helper: persist language for chat_id (even before login) ──
+    async def get_chat_lang(chat_id, user=None):
+        """Get language: from logged-in user > from prefs collection > default fa."""
+        if user:
+            return user.get("telegram_lang", "fa")
+        pref = await db.telegram_prefs.find_one({"chat_id": str(chat_id)}, {"_id": 0})
+        if pref:
+            return pref.get("lang", "fa")
+        return None  # No language chosen yet
+
+    async def set_chat_lang(chat_id, lang, user=None):
+        """Save language preference persistently."""
+        await db.telegram_prefs.update_one(
+            {"chat_id": str(chat_id)},
+            {"$set": {"chat_id": str(chat_id), "lang": lang}},
+            upsert=True
+        )
+        if user:
+            await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_lang": lang}})
+
     async def send_not_logged_in(update_or_query, lang="fa"):
         kb = [[InlineKeyboardButton(t(lang, "btn_login"), callback_data="help_login")]]
         msg = t(lang, "not_logged_in")
