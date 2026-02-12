@@ -186,6 +186,7 @@ show_menu() {
   draw_line "$D"
   echo -e "  ${B}${C}e${N} ${B})${N}  Export           ${D}Backup data for migration${N}"
   echo -e "  ${B}${C}i${N} ${B})${N}  Import           ${D}Restore data from backup${N}"
+  echo -e "  ${B}${C}t${N} ${B})${N}  Telegram Bot     ${D}Configure Telegram bot${N}"
   echo -e "  ${B}${W}0${N} ${B})${N}  Exit"
   echo ""
 
