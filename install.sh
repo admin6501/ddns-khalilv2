@@ -1040,16 +1040,19 @@ do_telegram_config() {
 
   local ENV_FILE="${INSTALL_DIR}/backend/.env"
   local CURRENT_TOKEN=$(grep "^TELEGRAM_BOT_TOKEN=" "$ENV_FILE" 2>/dev/null | cut -d= -f2-)
+  local CURRENT_ADMIN_ID=$(grep "^TELEGRAM_ADMIN_ID=" "$ENV_FILE" 2>/dev/null | cut -d= -f2-)
 
   if [[ -n "$CURRENT_TOKEN" ]]; then
     echo -e "  ${B}Status:${N} ${G}Enabled${N}"
     echo -e "  ${D}Token: ${CURRENT_TOKEN:0:10}...${N}"
+    [[ -n "$CURRENT_ADMIN_ID" ]] && echo -e "  ${B}Admin ID:${N} ${C}${CURRENT_ADMIN_ID}${N}" || echo -e "  ${B}Admin ID:${N} ${D}Not set${N}"
     echo ""
     echo -e "  ${C}1${N}) Change token"
-    echo -e "  ${C}2${N}) Disable bot (remove token)"
-    echo -e "  ${C}3${N}) Back"
+    echo -e "  ${C}2${N}) Set/Change admin ID"
+    echo -e "  ${C}3${N}) Disable bot (remove token)"
+    echo -e "  ${C}4${N}) Back"
     echo ""
-    clean_read tg_choice "Select: " "3"
+    clean_read tg_choice "Select: " "4"
 
     case "$tg_choice" in
       1)
@@ -1063,6 +1066,21 @@ do_telegram_config() {
         success "Done! Bot should be active now."
         ;;
       2)
+        echo -e "  ${D}To get your Telegram ID, message @userinfobot${N}"
+        clean_read NEW_ADMIN_ID "Admin Telegram ID (numeric): "
+        [[ -z "$NEW_ADMIN_ID" ]] && { warn "Empty ID."; pause_menu; return; }
+        if grep -q "^TELEGRAM_ADMIN_ID=" "$ENV_FILE" 2>/dev/null; then
+          sed -i "s|^TELEGRAM_ADMIN_ID=.*|TELEGRAM_ADMIN_ID=${NEW_ADMIN_ID}|" "$ENV_FILE"
+        else
+          echo "TELEGRAM_ADMIN_ID=${NEW_ADMIN_ID}" >> "$ENV_FILE"
+        fi
+        success "Admin ID updated to ${NEW_ADMIN_ID}"
+        info "Restarting backend..."
+        clear_bot_lock
+        systemctl restart ${SERVICE_NAME} 2>/dev/null
+        success "Done!"
+        ;;
+      3)
         sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=|" "$ENV_FILE"
         clear_bot_lock
         success "Telegram bot disabled"
@@ -1086,6 +1104,17 @@ do_telegram_config() {
         sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=${NEW_TOKEN}|" "$ENV_FILE"
       else
         echo "TELEGRAM_BOT_TOKEN=${NEW_TOKEN}" >> "$ENV_FILE"
+      fi
+
+      echo -e "  ${D}To get your Telegram ID, message @userinfobot${N}"
+      clean_read NEW_ADMIN_ID "Admin Telegram ID (numeric, optional): "
+      if [[ -n "$NEW_ADMIN_ID" ]]; then
+        if grep -q "^TELEGRAM_ADMIN_ID=" "$ENV_FILE" 2>/dev/null; then
+          sed -i "s|^TELEGRAM_ADMIN_ID=.*|TELEGRAM_ADMIN_ID=${NEW_ADMIN_ID}|" "$ENV_FILE"
+        else
+          echo "TELEGRAM_ADMIN_ID=${NEW_ADMIN_ID}" >> "$ENV_FILE"
+        fi
+        success "Admin ID saved: ${NEW_ADMIN_ID}"
       fi
 
       success "Token saved"
