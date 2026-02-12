@@ -1147,8 +1147,12 @@ async def start_telegram_bot():
             await update_or_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(kb))
 
     # ── Main Menu Keyboard ───────────────────────────────────
-    def main_menu_kb(lang="fa"):
-        return InlineKeyboardMarkup([
+    def is_admin_chat(chat_id):
+        """Check if chat_id is the configured admin."""
+        return TELEGRAM_ADMIN_ID and str(chat_id) == str(TELEGRAM_ADMIN_ID)
+
+    def main_menu_kb(lang="fa", chat_id=None):
+        rows = [
             [InlineKeyboardButton(t(lang, "btn_records"), callback_data="records"),
              InlineKeyboardButton(t(lang, "btn_add"), callback_data="add_start")],
             [InlineKeyboardButton(t(lang, "btn_status"), callback_data="status"),
@@ -1156,7 +1160,24 @@ async def start_telegram_bot():
             [InlineKeyboardButton(t(lang, "btn_referral"), callback_data="referral"),
              InlineKeyboardButton(t(lang, "btn_logout"), callback_data="logout")],
             [InlineKeyboardButton(t(lang, "btn_lang"), callback_data="toggle_lang")],
+        ]
+        if chat_id and is_admin_chat(chat_id):
+            rows.insert(-1, [InlineKeyboardButton(t(lang, "btn_admin"), callback_data="adm_panel")])
+        return InlineKeyboardMarkup(rows)
+
+    def admin_menu_kb(lang="fa"):
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton(t(lang, "admin_stats"), callback_data="adm_stats"),
+             InlineKeyboardButton(t(lang, "admin_users"), callback_data="adm_users_0")],
+            [InlineKeyboardButton(t(lang, "admin_records"), callback_data="adm_records_0"),
+             InlineKeyboardButton(t(lang, "admin_plans"), callback_data="adm_plans")],
+            [InlineKeyboardButton(t(lang, "admin_settings"), callback_data="adm_settings"),
+             InlineKeyboardButton(t(lang, "admin_logs"), callback_data="adm_logs_0")],
+            [InlineKeyboardButton(t(lang, "admin_back"), callback_data="main_menu")],
         ])
+
+    def admin_back_kb(lang="fa"):
+        return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 " + t(lang, "btn_admin").replace("🛡 ", ""), callback_data="adm_panel")]])
 
     def back_menu_kb(lang="fa"):
         return InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")]])
