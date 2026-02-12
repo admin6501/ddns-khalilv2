@@ -1294,6 +1294,7 @@ async def start_telegram_bot():
         chat_id = update.effective_chat.id
         text = update.message.text.strip()
         lang = context.user_data.get("lang", "fa")
+        logger.info(f"Telegram message from chat_id={chat_id}, step={context.user_data.get('login_step') or context.user_data.get('add_step', 'none')}")
 
         # ── Login Flow ──
         login_step = context.user_data.get("login_step")
