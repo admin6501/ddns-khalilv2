@@ -182,6 +182,10 @@ show_menu() {
   echo -e "  ${B}${W}7${N} ${B})${N}  Logs             ${D}View backend logs${N}"
   echo -e "  ${B}${W}8${N} ${B})${N}  Update           ${D}Pull latest code & rebuild${N}"
   echo -e "  ${B}${W}9${N} ${B})${N}  SSL Renew        ${D}Renew SSL certificate${N}"
+  echo ""
+  draw_line "$D"
+  echo -e "  ${B}${C}e${N} ${B})${N}  Export           ${D}Backup data for migration${N}"
+  echo -e "  ${B}${C}i${N} ${B})${N}  Import           ${D}Restore data from backup${N}"
   echo -e "  ${B}${W}0${N} ${B})${N}  Exit"
   echo ""
 
@@ -198,6 +202,8 @@ show_menu() {
     7) do_logs ;;
     8) do_update ;;
     9) do_ssl_renew ;;
+    e|E) do_export ;;
+    i|I) do_import ;;
     0|q|Q) echo -e "  ${D}Goodbye!${N}"; echo ""; exit 0 ;;
     *) warn "Invalid option"; sleep 1 ;;
   esac
