@@ -395,7 +395,7 @@ export default function Admin() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid grid-cols-4 w-full max-w-lg">
+          <TabsList className="grid grid-cols-5 w-full max-w-2xl">
             <TabsTrigger value="users" data-testid="admin-tab-users">
               <Users className="w-4 h-4 me-1.5" />{t('admin_users')}
             </TabsTrigger>
@@ -404,6 +404,9 @@ export default function Admin() {
             </TabsTrigger>
             <TabsTrigger value="plans" data-testid="admin-tab-plans">
               <CreditCard className="w-4 h-4 me-1.5" />{t('admin_plans_tab')}
+            </TabsTrigger>
+            <TabsTrigger value="logs" data-testid="admin-tab-logs">
+              <Clock className="w-4 h-4 me-1.5" />{lang === 'fa' ? 'لاگ' : 'Logs'}
             </TabsTrigger>
             <TabsTrigger value="settings" data-testid="admin-tab-settings">
               <Settings className="w-4 h-4 me-1.5" />{t('admin_settings')}
