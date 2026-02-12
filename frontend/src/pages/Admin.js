@@ -96,7 +96,7 @@ export default function Admin() {
   // Settings
   const [settings, setSettings] = useState({
     telegram_id: '', telegram_url: '', contact_message_en: '', contact_message_fa: '',
-    referral_bonus_per_invite: 1
+    referral_bonus_per_invite: 1, default_free_records: 2
   });
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
