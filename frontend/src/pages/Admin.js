@@ -140,9 +140,20 @@ export default function Admin() {
     finally { setSettingsLoading(false); }
   }, []);
 
+  const fetchAdminLogs = useCallback(async (page = 1, action = '') => {
+    setAdminLogLoading(true);
+    try {
+      const res = await activityAPI.getAdminLogs(page, 30, '', action);
+      setAdminLogs(res.data.logs || []);
+      setAdminLogPages(res.data.pages || 1);
+      setAdminLogPage(res.data.page || 1);
+    } catch { /* ignore */ }
+    setAdminLogLoading(false);
+  }, []);
+
   useEffect(() => {
-    fetchUsers(); fetchAllRecords(); fetchPlans(); fetchSettings();
-  }, [fetchUsers, fetchAllRecords, fetchPlans, fetchSettings]);
+    fetchUsers(); fetchAllRecords(); fetchPlans(); fetchSettings(); fetchAdminLogs();
+  }, [fetchUsers, fetchAllRecords, fetchPlans, fetchSettings, fetchAdminLogs]);
 
   // === User actions ===
   const handleDeleteUser = async () => {
