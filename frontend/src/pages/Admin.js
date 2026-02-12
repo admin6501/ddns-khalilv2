@@ -777,6 +777,24 @@ export default function Admin() {
                         : 'Number of bonus records given to the referrer for each successful invite'}
                     </p>
                   </div>
+                  <div className="space-y-2">
+                    <Label>
+                      {lang === 'fa' ? '🎁 تعداد رکورد رایگان (پلن رایگان)' : '🎁 Default Free Records'}
+                    </Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={settings.default_free_records}
+                      onChange={(e) => setSettings(p => ({ ...p, default_free_records: parseInt(e.target.value) || 0 }))}
+                      className="max-w-[200px]"
+                      data-testid="admin-default-free-records-input"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {lang === 'fa'
+                        ? 'تعداد رکوردهایی که کاربر جدید بعد از ثبت‌نام به صورت رایگان دریافت می‌کنه'
+                        : 'Number of free DNS records given to new users upon registration'}
+                    </p>
+                  </div>
                   <Button onClick={handleSaveSettings} disabled={settingsSaving} data-testid="admin-save-settings-btn">
                     {settingsSaving ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Save className="w-4 h-4 me-2" />}
                     {t('admin_save_settings')}
