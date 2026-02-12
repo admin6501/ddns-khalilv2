@@ -1471,6 +1471,11 @@ async def stop_telegram_bot():
         except Exception as e:
             logger.warning(f"Telegram bot stop error: {e}")
         telegram_bot_app = None
+    # Release bot lock
+    try:
+        await db.bot_lock.update_one({"_id": "telegram_bot"}, {"$set": {"active": False}})
+    except Exception:
+        pass
 
 # Include router
 app.include_router(api_router)
