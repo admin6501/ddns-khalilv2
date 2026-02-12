@@ -1569,14 +1569,20 @@ async def startup():
             "telegram_url": "https://t.me/",
             "contact_message_en": "Contact us on Telegram for pricing",
             "contact_message_fa": "برای استعلام قیمت در تلگرام تماس بگیرید",
-            "referral_bonus_per_invite": 1
+            "referral_bonus_per_invite": 1,
+            "default_free_records": PLAN_LIMITS["free"]
         })
     else:
-        # Ensure referral_bonus_per_invite field exists
+        # Ensure new fields exist in settings
+        updates = {}
         if "referral_bonus_per_invite" not in (existing_settings or {}):
+            updates["referral_bonus_per_invite"] = 1
+        if "default_free_records" not in (existing_settings or {}):
+            updates["default_free_records"] = PLAN_LIMITS["free"]
+        if updates:
             await db.settings.update_one(
                 {"key": "site_settings"},
-                {"$set": {"referral_bonus_per_invite": 1}}
+                {"$set": updates}
             )
     
     logger.info("Database indexes created")
