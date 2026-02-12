@@ -1593,6 +1593,98 @@ async def telegram_status():
     except Exception as e:
         return {"status": "error", "reason": str(e)}
 
+@api_router.get("/telegram/debug")
+async def telegram_debug():
+    """Deep diagnostic for Telegram bot issues."""
+    result = {
+        "token_configured": bool(TELEGRAM_BOT_TOKEN),
+        "token_prefix": TELEGRAM_BOT_TOKEN[:15] + "..." if TELEGRAM_BOT_TOKEN else None,
+        "app_instance": telegram_bot_app is not None,
+        "app_running": False,
+        "polling_running": False,
+        "webhook_info": None,
+        "bot_info": None,
+        "pending_updates_check": None,
+        "handler_count": 0,
+        "errors": []
+    }
+
+    if not TELEGRAM_BOT_TOKEN:
+        result["errors"].append("No TELEGRAM_BOT_TOKEN in .env")
+        return result
+
+    # Check bot info
+    try:
+        async with httpx.AsyncClient() as hc:
+            resp = await hc.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getMe",
+                timeout=10
+            )
+            data = resp.json()
+            if data.get("ok"):
+                result["bot_info"] = {
+                    "id": data["result"]["id"],
+                    "username": data["result"]["username"],
+                    "is_bot": data["result"]["is_bot"]
+                }
+            else:
+                result["errors"].append(f"getMe failed: {data}")
+    except Exception as e:
+        result["errors"].append(f"getMe error: {str(e)}")
+
+    # Check webhook
+    try:
+        async with httpx.AsyncClient() as hc:
+            resp = await hc.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getWebhookInfo",
+                timeout=10
+            )
+            data = resp.json()
+            if data.get("ok"):
+                wh = data["result"]
+                result["webhook_info"] = {
+                    "url": wh.get("url", ""),
+                    "has_custom_certificate": wh.get("has_custom_certificate", False),
+                    "pending_update_count": wh.get("pending_update_count", 0),
+                    "last_error_date": wh.get("last_error_date"),
+                    "last_error_message": wh.get("last_error_message"),
+                }
+                if wh.get("url"):
+                    result["errors"].append(f"WEBHOOK IS SET: {wh['url']} — this blocks polling!")
+    except Exception as e:
+        result["errors"].append(f"getWebhookInfo error: {str(e)}")
+
+    # Check for pending updates via raw API
+    try:
+        async with httpx.AsyncClient() as hc:
+            resp = await hc.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
+                json={"offset": -1, "limit": 1, "timeout": 1},
+                timeout=10
+            )
+            data = resp.json()
+            if data.get("ok"):
+                updates = data.get("result", [])
+                result["pending_updates_check"] = {
+                    "count": len(updates),
+                    "last_update_id": updates[-1]["update_id"] if updates else None,
+                    "last_update_type": list(updates[-1].keys()) if updates else None
+                }
+            else:
+                result["errors"].append(f"getUpdates failed: {data.get('description', 'unknown')}")
+                if "Conflict" in str(data):
+                    result["errors"].append("CONFLICT: Another bot instance is using getUpdates!")
+    except Exception as e:
+        result["errors"].append(f"getUpdates error: {str(e)}")
+
+    # Check app state
+    if telegram_bot_app:
+        result["app_running"] = telegram_bot_app.running
+        result["polling_running"] = telegram_bot_app.updater.running if telegram_bot_app.updater else False
+        result["handler_count"] = len(telegram_bot_app.handlers.get(0, []))
+
+    return result
+
 # Include router
 app.include_router(api_router)
 
