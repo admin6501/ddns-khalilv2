@@ -831,6 +831,225 @@ DEFAULT_PLANS = [
     }
 ]
 
+# ============== ACTIVITY LOG ROUTES ==============
+
+@api_router.get("/activity/logs")
+async def get_user_activity_logs(page: int = 1, limit: int = 20, current_user: dict = Depends(get_current_user)):
+    skip = (page - 1) * limit
+    total = await db.activity_logs.count_documents({"user_id": current_user["id"]})
+    logs = await db.activity_logs.find(
+        {"user_id": current_user["id"]}, {"_id": 0}
+    ).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    return {"logs": logs, "total": total, "page": page, "pages": (total + limit - 1) // limit if total > 0 else 1}
+
+@api_router.get("/admin/activity/logs")
+async def admin_get_activity_logs(page: int = 1, limit: int = 50, user_id: Optional[str] = None, action: Optional[str] = None, admin: dict = Depends(get_admin_user)):
+    query = {}
+    if user_id:
+        query["user_id"] = user_id
+    if action:
+        query["action"] = action
+    skip = (page - 1) * limit
+    total = await db.activity_logs.count_documents(query)
+    logs = await db.activity_logs.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    return {"logs": logs, "total": total, "page": page, "pages": (total + limit - 1) // limit if total > 0 else 1}
+
+# ============== TELEGRAM BOT ==============
+
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+telegram_bot_app = None
+
+async def start_telegram_bot():
+    """Start the Telegram bot in polling mode if token is configured."""
+    global telegram_bot_app
+    if not TELEGRAM_BOT_TOKEN:
+        logger.info("Telegram bot: No token configured, skipping.")
+        return
+
+    try:
+        from telegram import Update, BotCommand
+        from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+    except ImportError:
+        logger.warning("Telegram bot: python-telegram-bot not installed, skipping.")
+        return
+
+    async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await update.message.reply_text(
+            f"👋 به ربات مدیریت DNS {DOMAIN_NAME} خوش آمدید!\n\n"
+            f"برای اتصال اکانت:\n"
+            f"/login email password\n\n"
+            f"دستورات:\n"
+            f"/records - لیست رکوردها\n"
+            f"/add type name value - ساخت رکورد\n"
+            f"/delete name - حذف رکورد\n"
+            f"/status - وضعیت اکانت\n"
+            f"/logout - قطع اتصال"
+        )
+
+    async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        args = context.args
+        if len(args) < 2:
+            await update.message.reply_text("❌ استفاده: /login email password")
+            return
+        email, password = args[0], args[1]
+        user = await db.users.find_one({"email": email}, {"_id": 0})
+        if not user or not verify_password(password, user["password_hash"]):
+            await update.message.reply_text("❌ ایمیل یا رمز عبور اشتباه است.")
+            return
+        chat_id = str(update.effective_chat.id)
+        await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_chat_id": chat_id}})
+        await update.message.reply_text(f"✅ اکانت {email} با موفقیت متصل شد!\n\n⚠️ پیام /login خود را حذف کنید تا رمز عبورتان امن بماند.")
+        await log_activity(user["id"], user["email"], "telegram_linked", f"Telegram chat linked: {chat_id}")
+
+    async def cmd_logout(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        chat_id = str(update.effective_chat.id)
+        user = await db.users.find_one({"telegram_chat_id": chat_id}, {"_id": 0})
+        if not user:
+            await update.message.reply_text("❌ هیچ اکانتی به این چت متصل نیست.")
+            return
+        await db.users.update_one({"id": user["id"]}, {"$unset": {"telegram_chat_id": ""}})
+        await update.message.reply_text("✅ اکانت شما از ربات قطع شد.")
+
+    async def get_user_from_chat(update: Update):
+        chat_id = str(update.effective_chat.id)
+        user = await db.users.find_one({"telegram_chat_id": chat_id}, {"_id": 0})
+        if not user:
+            await update.message.reply_text("❌ ابتدا با /login وارد شوید.")
+        return user
+
+    async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user = await get_user_from_chat(update)
+        if not user:
+            return
+        record_count = await db.dns_records.count_documents({"user_id": user["id"]})
+        await update.message.reply_text(
+            f"📊 وضعیت اکانت\n\n"
+            f"👤 {user['name']} ({user['email']})\n"
+            f"📋 پلن: {user['plan']}\n"
+            f"📝 رکوردها: {record_count}/{user['record_limit']}\n"
+            f"🔗 کد دعوت: {user.get('referral_code', '-')}\n"
+            f"👥 دعوت‌ها: {user.get('referral_count', 0)}"
+        )
+
+    async def cmd_records(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user = await get_user_from_chat(update)
+        if not user:
+            return
+        records = await db.dns_records.find({"user_id": user["id"]}, {"_id": 0}).to_list(100)
+        if not records:
+            await update.message.reply_text("📭 هیچ رکوردی ندارید.\n\nبرای ساخت: /add A mysite 1.2.3.4")
+            return
+        text = f"📝 رکوردهای شما ({len(records)}):\n\n"
+        for r in records:
+            proxy = "🟠" if r.get("proxied") else "⚪️"
+            text += f"{proxy} {r['record_type']} | {r['full_name']} → {r['content']}\n"
+        await update.message.reply_text(text)
+
+    async def cmd_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user = await get_user_from_chat(update)
+        if not user:
+            return
+        args = context.args
+        if len(args) < 3:
+            await update.message.reply_text("❌ استفاده: /add TYPE NAME VALUE\n\nمثال: /add A mysite 1.2.3.4")
+            return
+        record_type = args[0].upper()
+        name = args[1].lower()
+        content = args[2]
+        if record_type not in ["A", "AAAA", "CNAME"]:
+            await update.message.reply_text("❌ فقط A، AAAA و CNAME پشتیبانی میشه.")
+            return
+        record_count = await db.dns_records.count_documents({"user_id": user["id"]})
+        if record_count >= user["record_limit"]:
+            await update.message.reply_text(f"❌ محدودیت رکورد ({user['record_limit']}). پلن خود را ارتقا دهید.")
+            return
+        full_name = f"{name}.{DOMAIN_NAME}" if name != "@" else DOMAIN_NAME
+        existing = await db.dns_records.find_one({"full_name": full_name, "record_type": record_type})
+        if existing:
+            await update.message.reply_text(f"❌ رکورد {full_name} ({record_type}) قبلاً وجود دارد.")
+            return
+        try:
+            cf_result = await cf_create_record(name=name, record_type=record_type, content=content)
+            record_id = str(uuid.uuid4())
+            record_doc = {
+                "id": record_id, "cf_record_id": cf_result["id"], "user_id": user["id"],
+                "name": name, "full_name": full_name, "record_type": record_type,
+                "content": content, "ttl": 1, "proxied": False,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.dns_records.insert_one(record_doc)
+            await db.users.update_one({"id": user["id"]}, {"$inc": {"record_count": 1}})
+            await log_activity(user["id"], user["email"], "record_created", f"{record_type} {full_name} → {content} (via Telegram)")
+            await update.message.reply_text(f"✅ رکورد ساخته شد!\n\n{record_type} {full_name} → {content}")
+        except Exception as e:
+            await update.message.reply_text(f"❌ خطا: {str(e)}")
+
+    async def cmd_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user = await get_user_from_chat(update)
+        if not user:
+            return
+        args = context.args
+        if len(args) < 1:
+            await update.message.reply_text("❌ استفاده: /delete NAME\n\nمثال: /delete mysite")
+            return
+        name = args[0].lower()
+        full_name = f"{name}.{DOMAIN_NAME}" if name != "@" else DOMAIN_NAME
+        record = await db.dns_records.find_one({"user_id": user["id"], "full_name": full_name}, {"_id": 0})
+        if not record:
+            await update.message.reply_text(f"❌ رکورد {full_name} پیدا نشد.")
+            return
+        try:
+            await cf_delete_record(record["cf_record_id"])
+            await db.dns_records.delete_one({"id": record["id"]})
+            await db.users.update_one({"id": user["id"]}, {"$inc": {"record_count": -1}})
+            await log_activity(user["id"], user["email"], "record_deleted", f"{record['record_type']} {full_name} (via Telegram)")
+            await update.message.reply_text(f"✅ رکورد {full_name} حذف شد.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ خطا: {str(e)}")
+
+    try:
+        telegram_bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+        telegram_bot_app.add_handler(CommandHandler("start", cmd_start))
+        telegram_bot_app.add_handler(CommandHandler("login", cmd_login))
+        telegram_bot_app.add_handler(CommandHandler("logout", cmd_logout))
+        telegram_bot_app.add_handler(CommandHandler("status", cmd_status))
+        telegram_bot_app.add_handler(CommandHandler("records", cmd_records))
+        telegram_bot_app.add_handler(CommandHandler("add", cmd_add))
+        telegram_bot_app.add_handler(CommandHandler("delete", cmd_delete))
+
+        # Set bot commands menu
+        commands = [
+            BotCommand("start", "شروع"),
+            BotCommand("login", "ورود - /login email password"),
+            BotCommand("records", "لیست رکوردها"),
+            BotCommand("add", "ساخت رکورد - /add TYPE NAME VALUE"),
+            BotCommand("delete", "حذف رکورد - /delete NAME"),
+            BotCommand("status", "وضعیت اکانت"),
+            BotCommand("logout", "قطع اتصال"),
+        ]
+
+        await telegram_bot_app.initialize()
+        await telegram_bot_app.bot.set_my_commands(commands)
+        await telegram_bot_app.start()
+        await telegram_bot_app.updater.start_polling(drop_pending_updates=True)
+        logger.info(f"Telegram bot started: @{(await telegram_bot_app.bot.get_me()).username}")
+    except Exception as e:
+        logger.error(f"Telegram bot failed to start: {e}")
+        telegram_bot_app = None
+
+async def stop_telegram_bot():
+    """Stop the Telegram bot gracefully."""
+    global telegram_bot_app
+    if telegram_bot_app:
+        try:
+            await telegram_bot_app.updater.stop()
+            await telegram_bot_app.stop()
+            await telegram_bot_app.shutdown()
+            logger.info("Telegram bot stopped")
+        except Exception as e:
+            logger.warning(f"Telegram bot stop error: {e}")
+        telegram_bot_app = None
+
 # Include router
 app.include_router(api_router)
 
