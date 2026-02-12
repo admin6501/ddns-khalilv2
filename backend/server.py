@@ -1440,10 +1440,23 @@ async def start_telegram_bot():
                 .pool_timeout(5)
                 .build()
             )
-            telegram_bot_app.add_handler(CommandHandler("start", cmd_start))
-            telegram_bot_app.add_handler(CommandHandler("login", cmd_login))
-            telegram_bot_app.add_handler(CallbackQueryHandler(callback_handler))
-            telegram_bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+
+            # ── Wrapper to add logging to all handlers ──
+            def wrap_handler(fn, handler_name):
+                async def wrapped(update, context):
+                    chat_id = update.effective_chat.id if update.effective_chat else "?"
+                    logger.info(f"[TG-HANDLER] {handler_name} triggered | chat_id={chat_id}")
+                    try:
+                        return await fn(update, context)
+                    except Exception as e:
+                        logger.error(f"[TG-HANDLER] {handler_name} FAILED | chat_id={chat_id} | error={e}", exc_info=True)
+                        raise
+                return wrapped
+
+            telegram_bot_app.add_handler(CommandHandler("start", wrap_handler(cmd_start, "cmd_start")))
+            telegram_bot_app.add_handler(CommandHandler("login", wrap_handler(cmd_login, "cmd_login")))
+            telegram_bot_app.add_handler(CallbackQueryHandler(wrap_handler(callback_handler, "callback_handler")))
+            telegram_bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, wrap_handler(message_handler, "message_handler")))
             telegram_bot_app.add_error_handler(error_handler)
 
             commands = [
@@ -1452,11 +1465,47 @@ async def start_telegram_bot():
 
             await telegram_bot_app.initialize()
 
-            # Delete webhook & wait for old connections to clear
-            await telegram_bot_app.bot.delete_webhook(drop_pending_updates=True)
-            logger.info("Telegram bot: webhook deleted, waiting for old connections to clear...")
-            await asyncio.sleep(2)
+            # ── Step 1: Force delete webhook ──
+            del_result = await telegram_bot_app.bot.delete_webhook(drop_pending_updates=True)
+            logger.info(f"Telegram bot: delete_webhook result={del_result}")
 
+            # ── Step 2: Verify webhook is actually deleted ──
+            wh_info = await telegram_bot_app.bot.get_webhook_info()
+            logger.info(f"Telegram bot: webhook_info url='{wh_info.url}' pending={wh_info.pending_update_count}")
+            if wh_info.url:
+                logger.warning(f"Telegram bot: webhook still set to '{wh_info.url}', deleting again...")
+                await telegram_bot_app.bot.delete_webhook(drop_pending_updates=True)
+                await asyncio.sleep(2)
+                wh_info2 = await telegram_bot_app.bot.get_webhook_info()
+                logger.info(f"Telegram bot: webhook_info after 2nd delete: url='{wh_info2.url}'")
+
+            logger.info("Telegram bot: waiting for old connections to clear...")
+            await asyncio.sleep(3)
+
+            # ── Step 3: Reset offset by calling getUpdates directly ──
+            try:
+                async with httpx.AsyncClient() as hc:
+                    resp = await hc.post(
+                        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
+                        json={"offset": -1, "limit": 1, "timeout": 1},
+                        timeout=10
+                    )
+                    gu_data = resp.json()
+                    if gu_data.get("ok") and gu_data.get("result"):
+                        last_id = gu_data["result"][-1]["update_id"]
+                        # Confirm the offset by requesting update_id+1
+                        await hc.post(
+                            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
+                            json={"offset": last_id + 1, "limit": 1, "timeout": 1},
+                            timeout=10
+                        )
+                        logger.info(f"Telegram bot: offset reset to {last_id + 1}")
+                    else:
+                        logger.info("Telegram bot: no pending updates, offset OK")
+            except Exception as e:
+                logger.warning(f"Telegram bot: offset reset failed (non-critical): {e}")
+
+            # ── Step 4: Start application & polling ──
             await telegram_bot_app.bot.set_my_commands(commands)
             await telegram_bot_app.start()
             await telegram_bot_app.updater.start_polling(
@@ -1464,8 +1513,17 @@ async def start_telegram_bot():
                 allowed_updates=Update.ALL_TYPES,
                 poll_interval=1.0,
             )
+
             bot_info = await telegram_bot_app.bot.get_me()
             logger.info(f"Telegram bot started successfully: @{bot_info.username} (ID: {bot_info.id})")
+
+            # ── Step 5: Verify polling is working by checking one cycle ──
+            await asyncio.sleep(2)
+            if telegram_bot_app.updater and telegram_bot_app.updater.running:
+                logger.info("Telegram bot: polling confirmed running")
+            else:
+                logger.warning("Telegram bot: polling NOT running after start!")
+
             return  # Success — exit retry loop
         except Exception as e:
             logger.error(f"Telegram bot start attempt {attempt}/{max_retries} failed: {e}", exc_info=True)
