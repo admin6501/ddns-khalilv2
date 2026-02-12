@@ -1984,8 +1984,9 @@ async def start_telegram_bot():
             context.user_data["adm_edit_field"] = field
             context.user_data["adm_edit_step"] = "value"
             kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="adm_settings")]])
+            safe_field = field.replace("_", " ")
             await query.edit_message_text(
-                t(lang, "admin_setting_enter", field=field),
+                t(lang, "admin_setting_enter", field=safe_field),
                 reply_markup=kb, parse_mode="Markdown"
             )
 
