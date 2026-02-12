@@ -634,6 +634,99 @@ export default function Admin() {
             </div>
           </TabsContent>
 
+          {/* ===== ACTIVITY LOGS TAB ===== */}
+          <TabsContent value="logs" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <Clock className="w-5 h-5" />
+                {lang === 'fa' ? 'لاگ فعالیت‌ها' : 'Activity Logs'}
+              </h2>
+              <div className="flex items-center gap-2">
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={adminLogFilter}
+                  onChange={(e) => { setAdminLogFilter(e.target.value); fetchAdminLogs(1, e.target.value); }}
+                >
+                  <option value="">{lang === 'fa' ? 'همه فعالیت‌ها' : 'All Actions'}</option>
+                  <option value="login">{lang === 'fa' ? 'ورود' : 'Login'}</option>
+                  <option value="register">{lang === 'fa' ? 'ثبت‌نام' : 'Register'}</option>
+                  <option value="record_created">{lang === 'fa' ? 'ساخت رکورد' : 'Record Created'}</option>
+                  <option value="record_updated">{lang === 'fa' ? 'ویرایش رکورد' : 'Record Updated'}</option>
+                  <option value="record_deleted">{lang === 'fa' ? 'حذف رکورد' : 'Record Deleted'}</option>
+                  <option value="telegram_linked">{lang === 'fa' ? 'اتصال تلگرام' : 'Telegram Linked'}</option>
+                </select>
+                <Button variant="ghost" size="sm" onClick={() => fetchAdminLogs(1, adminLogFilter)}>
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card overflow-hidden">
+              {adminLogLoading ? (
+                <div className="flex items-center justify-center p-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : adminLogs.length === 0 ? (
+                <div className="text-center p-12 text-muted-foreground">
+                  {lang === 'fa' ? 'هنوز فعالیتی ثبت نشده.' : 'No activity logs yet.'}
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{lang === 'fa' ? 'کاربر' : 'User'}</TableHead>
+                          <TableHead>{lang === 'fa' ? 'فعالیت' : 'Action'}</TableHead>
+                          <TableHead>{lang === 'fa' ? 'جزئیات' : 'Details'}</TableHead>
+                          <TableHead>{lang === 'fa' ? 'تاریخ' : 'Date'}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {adminLogs.map((log) => (
+                          <TableRow key={log.id}>
+                            <TableCell className="font-medium text-sm">{log.user_email}</TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                log.action === 'record_created' ? 'default' :
+                                log.action === 'record_deleted' ? 'destructive' :
+                                log.action === 'record_updated' ? 'secondary' :
+                                'outline'
+                              } className="text-xs">
+                                {log.action === 'record_created' ? (lang === 'fa' ? 'ساخت رکورد' : 'Created') :
+                                 log.action === 'record_deleted' ? (lang === 'fa' ? 'حذف رکورد' : 'Deleted') :
+                                 log.action === 'record_updated' ? (lang === 'fa' ? 'ویرایش رکورد' : 'Updated') :
+                                 log.action === 'login' ? (lang === 'fa' ? 'ورود' : 'Login') :
+                                 log.action === 'register' ? (lang === 'fa' ? 'ثبت‌نام' : 'Register') :
+                                 log.action === 'telegram_linked' ? (lang === 'fa' ? 'تلگرام' : 'Telegram') :
+                                 log.action}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground font-mono max-w-xs truncate">{log.details || '—'}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(log.created_at).toLocaleDateString(lang === 'fa' ? 'fa-IR' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {adminLogPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 p-3 border-t border-border">
+                      <Button variant="ghost" size="sm" disabled={adminLogPage <= 1} onClick={() => fetchAdminLogs(adminLogPage - 1, adminLogFilter)}>
+                        {lang === 'fa' ? 'قبلی' : 'Prev'}
+                      </Button>
+                      <span className="text-xs text-muted-foreground">{adminLogPage}/{adminLogPages}</span>
+                      <Button variant="ghost" size="sm" disabled={adminLogPage >= adminLogPages} onClick={() => fetchAdminLogs(adminLogPage + 1, adminLogFilter)}>
+                        {lang === 'fa' ? 'بعدی' : 'Next'}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </TabsContent>
+
           {/* ===== SETTINGS TAB ===== */}
           <TabsContent value="settings" className="space-y-6">
             <h2 className="text-xl font-semibold">{t('admin_settings')}</h2>
