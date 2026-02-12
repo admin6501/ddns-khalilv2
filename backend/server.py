@@ -1100,12 +1100,16 @@ async def start_telegram_bot():
                 reply_markup=main_menu_kb(lang)
             )
 
-        # ── Help Login ──
+        # ── Help Login (start login flow) ──
         elif data == "help_login":
+            context.user_data.clear()
+            context.user_data["login_step"] = "email"
+            context.user_data["lang"] = lang
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="main_menu")]])
             await query.edit_message_text(
                 t(lang, "help_login_title") + "\n\n" + t(lang, "help_login_body"),
                 parse_mode="Markdown",
-                reply_markup=back_menu_kb(lang)
+                reply_markup=kb
             )
 
         # ── Records List ──
