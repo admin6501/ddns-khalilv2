@@ -286,6 +286,7 @@ async def register(user_data: UserRegister):
     
     await db.users.insert_one(user_doc)
     token = create_token(user_id, user_data.email)
+    await log_activity(user_id, user_data.email, "register", "New account created")
     return {
         "token": token,
         "user": {
