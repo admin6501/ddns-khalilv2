@@ -1052,25 +1052,29 @@ async def start_telegram_bot():
 
     # ── /start ───────────────────────────────────────────────
     async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        context.user_data.clear()
-        chat_id = update.effective_chat.id
-        user = await get_user_by_chat(chat_id)
-        lang = get_lang(user)
-        if user:
-            await update.message.reply_text(
-                t(lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
-                reply_markup=main_menu_kb(lang)
-            )
-        else:
-            kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton(t(lang, "btn_login"), callback_data="help_login")],
-                [InlineKeyboardButton("🌐 English", callback_data="set_lang_en"),
-                 InlineKeyboardButton("🌐 فارسی", callback_data="set_lang_fa")]
-            ])
-            await update.message.reply_text(
-                t(lang, "welcome_new", domain=CF_ZONE_DOMAIN),
-                reply_markup=kb
-            )
+        try:
+            context.user_data.clear()
+            chat_id = update.effective_chat.id
+            logger.info(f"Telegram /start from chat_id={chat_id}")
+            user = await get_user_by_chat(chat_id)
+            lang = get_lang(user)
+            if user:
+                await update.message.reply_text(
+                    t(lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
+                    reply_markup=main_menu_kb(lang)
+                )
+            else:
+                kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t(lang, "btn_login"), callback_data="help_login")],
+                    [InlineKeyboardButton("🌐 English", callback_data="set_lang_en"),
+                     InlineKeyboardButton("🌐 فارسی", callback_data="set_lang_fa")]
+                ])
+                await update.message.reply_text(
+                    t(lang, "welcome_new", domain=CF_ZONE_DOMAIN),
+                    reply_markup=kb
+                )
+        except Exception as e:
+            logger.error(f"Error in cmd_start: {e}", exc_info=True)
 
     # ── /login (redirect to button flow) ───────────────────
     async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
