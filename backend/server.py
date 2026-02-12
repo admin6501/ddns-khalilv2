@@ -435,6 +435,9 @@ async def create_record(record_data: DNSRecordCreate, current_user: dict = Depen
         {"$inc": {"record_count": 1}}
     )
     
+    await log_activity(current_user["id"], current_user["email"], "record_created",
+                       f"{record_data.record_type} {full_name} → {record_data.content}")
+    
     return {
         "id": record_id,
         "cf_record_id": cf_result["id"],
