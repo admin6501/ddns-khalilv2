@@ -1620,6 +1620,17 @@ async def stop_telegram_bot():
         logger.warning(f"Telegram bot stop error: {e}")
     finally:
         telegram_bot_app = None
+        # Flush stale connections by calling getUpdates with short timeout
+        if TELEGRAM_BOT_TOKEN:
+            try:
+                async with httpx.AsyncClient() as hc:
+                    await hc.post(
+                        f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates",
+                        json={"offset": -1, "limit": 1, "timeout": 0},
+                        timeout=5
+                    )
+            except Exception:
+                pass
 
 # ============== TELEGRAM BOT STATUS ==============
 
