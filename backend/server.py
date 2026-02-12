@@ -681,7 +681,7 @@ async def admin_create_record(record_data: AdminDNSRecordCreate, admin: dict = D
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    full_name = f"{record_data.name}.{DOMAIN_NAME}" if record_data.name != "@" else DOMAIN_NAME
+    full_name = f"{record_data.name}.{CF_ZONE_DOMAIN}" if record_data.name != "@" else CF_ZONE_DOMAIN
     
     cf_result = await cf_create_record(
         name=record_data.name, record_type=record_data.record_type,
