@@ -1131,11 +1131,16 @@ async def start_telegram_bot():
 
     # ── /login (redirect to button flow) ───────────────────
     async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        context.user_data.clear()
-        lang = context.user_data.get("lang", "fa")
+        saved_lang = context.user_data.get("lang", "fa")
+        context.user_data.pop("login_step", None)
+        context.user_data.pop("login_email", None)
+        context.user_data.pop("add_step", None)
+        context.user_data.pop("add_type", None)
+        context.user_data.pop("add_name", None)
+        context.user_data["lang"] = saved_lang
         context.user_data["login_step"] = "email"
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="main_menu")]])
-        await update.message.reply_text(t(lang, "help_login_body"), reply_markup=kb)
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(saved_lang, "btn_cancel"), callback_data="main_menu")]])
+        await update.message.reply_text(t(saved_lang, "help_login_body"), reply_markup=kb)
 
     # ── Callback Handler ─────────────────────────────────────
     async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
