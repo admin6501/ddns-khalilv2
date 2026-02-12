@@ -1289,13 +1289,6 @@ async def start_telegram_bot():
             kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_relogin"), callback_data="help_login")]])
             await query.edit_message_text(t(lang, "logout_success"), reply_markup=kb)
 
-        except Exception as e:
-            logger.error(f"Error in callback_handler ({data}): {e}", exc_info=True)
-            try:
-                await query.edit_message_text(t(lang, "error", err=str(e)), reply_markup=back_menu_kb(lang))
-            except Exception:
-                pass
-
     # ── Message Handler (for login & add record flows) ────────
     async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
