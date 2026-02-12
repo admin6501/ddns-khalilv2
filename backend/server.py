@@ -1305,6 +1305,8 @@ async def start_telegram_bot():
             context.user_data.clear()
             return
 
+        step = context.user_data.get("add_step")
+
         if step == "name":
             name = text.lower().replace(" ", "")
             if not name or len(name) > 63:
