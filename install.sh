@@ -205,6 +205,7 @@ show_menu() {
     9) do_ssl_renew ;;
     e|E) do_export ;;
     i|I) do_import ;;
+    t|T) do_telegram_config ;;
     0|q|Q) echo -e "  ${D}Goodbye!${N}"; echo ""; exit 0 ;;
     *) warn "Invalid option"; sleep 1 ;;
   esac
