@@ -1111,7 +1111,7 @@ async def start_telegram_bot():
                 await db.users.update_one({"id": user["id"]}, {"$set": {"telegram_lang": new_lang}})
                 lang = new_lang
             await query.edit_message_text(
-                t(new_lang, "welcome_logged_in", name=user['name'], domain=DOMAIN_NAME) if user else t(new_lang, "lang_changed"),
+                t(new_lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN) if user else t(new_lang, "lang_changed"),
                 reply_markup=main_menu_kb(new_lang)
             )
             return
