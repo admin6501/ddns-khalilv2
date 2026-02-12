@@ -74,9 +74,11 @@ function App() {
     <BrowserRouter>
       <ThemeProvider>
         <LanguageProvider>
-          <AuthProvider>
-            <AppContent />
-          </AuthProvider>
+          <ConfigProvider>
+            <AuthProvider>
+              <AppContent />
+            </AuthProvider>
+          </ConfigProvider>
         </LanguageProvider>
       </ThemeProvider>
     </BrowserRouter>
