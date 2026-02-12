@@ -1432,6 +1432,9 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
+    # Auto-detect Cloudflare zone domain
+    await cf_fetch_zone_domain()
+    
     # Create indexes
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
