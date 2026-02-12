@@ -919,6 +919,72 @@ do_ssl_renew() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  T) TELEGRAM BOT CONFIG
+# ═══════════════════════════════════════════════════════════════════════════════
+do_telegram_config() {
+  is_installed || { fail "Not installed."; pause_menu; return; }
+
+  step "Telegram Bot Configuration"
+
+  local ENV_FILE="${INSTALL_DIR}/backend/.env"
+  local CURRENT_TOKEN=$(grep "^TELEGRAM_BOT_TOKEN=" "$ENV_FILE" 2>/dev/null | cut -d= -f2-)
+
+  if [[ -n "$CURRENT_TOKEN" ]]; then
+    echo -e "  ${B}Status:${N} ${G}Enabled${N}"
+    echo -e "  ${D}Token: ${CURRENT_TOKEN:0:10}...${N}"
+    echo ""
+    echo -e "  ${C}1${N}) Change token"
+    echo -e "  ${C}2${N}) Disable bot (remove token)"
+    echo -e "  ${C}3${N}) Back"
+    echo ""
+    clean_read tg_choice "Select: " "3"
+
+    case "$tg_choice" in
+      1)
+        clean_read NEW_TOKEN "New bot token (from @BotFather): "
+        [[ -z "$NEW_TOKEN" ]] && { warn "Empty token."; pause_menu; return; }
+        sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=${NEW_TOKEN}|" "$ENV_FILE"
+        success "Token updated"
+        info "Restarting backend..."
+        systemctl restart ${SERVICE_NAME} 2>/dev/null
+        success "Done! Bot should be active now."
+        ;;
+      2)
+        sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=|" "$ENV_FILE"
+        success "Telegram bot disabled"
+        systemctl restart ${SERVICE_NAME} 2>/dev/null
+        ;;
+      *) ;;
+    esac
+  else
+    echo -e "  ${B}Status:${N} ${R}Disabled${N}"
+    echo ""
+    echo -e "  ${D}To create a bot:${N}"
+    echo -e "  ${D}  1. Open Telegram and search @BotFather${N}"
+    echo -e "  ${D}  2. Send /newbot and follow instructions${N}"
+    echo -e "  ${D}  3. Copy the token${N}"
+    echo ""
+    confirm "Enable Telegram bot now? y/N" "N" && {
+      clean_read NEW_TOKEN "Bot token: "
+      [[ -z "$NEW_TOKEN" ]] && { warn "Empty token."; pause_menu; return; }
+
+      if grep -q "^TELEGRAM_BOT_TOKEN=" "$ENV_FILE" 2>/dev/null; then
+        sed -i "s|^TELEGRAM_BOT_TOKEN=.*|TELEGRAM_BOT_TOKEN=${NEW_TOKEN}|" "$ENV_FILE"
+      else
+        echo "TELEGRAM_BOT_TOKEN=${NEW_TOKEN}" >> "$ENV_FILE"
+      fi
+
+      success "Token saved"
+      info "Restarting backend..."
+      systemctl restart ${SERVICE_NAME} 2>/dev/null
+      success "Done! Bot should be active now."
+    }
+  fi
+
+  pause_menu
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  E) EXPORT — Backup data for migration
 # ═══════════════════════════════════════════════════════════════════════════════
 do_export() {
