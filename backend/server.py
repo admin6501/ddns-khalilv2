@@ -1344,7 +1344,7 @@ async def start_telegram_bot():
             hint = t(lang, f"add_enter_value_{record_type}")
             kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="main_menu")]])
             await update.message.reply_text(
-                t(lang, "add_name_confirm", name=name, domain=DOMAIN_NAME, hint=hint),
+                t(lang, "add_name_confirm", name=name, domain=CF_ZONE_DOMAIN, hint=hint),
                 reply_markup=kb, parse_mode="Markdown"
             )
 
