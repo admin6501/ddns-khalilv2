@@ -138,6 +138,7 @@ export default function Admin() {
         contact_message_en: res.data.contact_message_en || '',
         contact_message_fa: res.data.contact_message_fa || '',
         referral_bonus_per_invite: res.data.referral_bonus_per_invite ?? 1,
+        default_free_records: res.data.default_free_records ?? 2,
       });
     } catch { toast.error('Failed to load settings'); }
     finally { setSettingsLoading(false); }
