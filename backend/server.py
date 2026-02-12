@@ -1268,8 +1268,9 @@ async def start_telegram_bot():
             return
         chat_id = update.effective_chat.id
         user = await get_user_by_chat(chat_id)
+        lang = get_lang(user) if user else context.user_data.get("lang", "fa")
         if not user:
-            await send_not_logged_in(update)
+            await send_not_logged_in(update, lang)
             context.user_data.clear()
             return
 
@@ -1279,19 +1280,15 @@ async def start_telegram_bot():
         if step == "name":
             name = text.lower().replace(" ", "")
             if not name or len(name) > 63:
-                await update.message.reply_text("❌ نام نامعتبر. دوباره تلاش کنید:")
+                await update.message.reply_text(t(lang, "add_name_invalid"))
                 return
             context.user_data["add_name"] = name
             context.user_data["add_step"] = "value"
             record_type = context.user_data["add_type"]
-            hints = {
-                "A": "آدرس IPv4 را وارد کنید:\nمثال: `1.2.3.4`",
-                "AAAA": "آدرس IPv6 را وارد کنید:\nمثال: `2001:db8::1`",
-                "CNAME": "دامنه مقصد را وارد کنید:\nمثال: `example.com`",
-            }
-            kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ انصراف", callback_data="main_menu")]])
+            hint = t(lang, f"add_enter_value_{record_type}")
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="main_menu")]])
             await update.message.reply_text(
-                f"✅ نام: `{name}.{DOMAIN_NAME}`\n\n{hints.get(record_type, 'مقدار رکورد:')}",
+                t(lang, "add_name_confirm", name=name, domain=DOMAIN_NAME, hint=hint),
                 reply_markup=kb, parse_mode="Markdown"
             )
 
@@ -1305,8 +1302,8 @@ async def start_telegram_bot():
             existing = await db.dns_records.find_one({"full_name": full_name, "record_type": record_type})
             if existing:
                 await update.message.reply_text(
-                    f"❌ رکورد `{full_name}` ({record_type}) قبلاً وجود دارد.",
-                    reply_markup=back_menu_kb(), parse_mode="Markdown"
+                    t(lang, "add_exists", name=full_name, type=record_type),
+                    reply_markup=back_menu_kb(lang), parse_mode="Markdown"
                 )
                 return
             try:
@@ -1322,17 +1319,16 @@ async def start_telegram_bot():
                 await db.users.update_one({"id": user["id"]}, {"$inc": {"record_count": 1}})
                 await log_activity(user["id"], user["email"], "record_created", f"{record_type} {full_name} → {content} (via Telegram)")
                 kb = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📝 مشاهده رکوردها", callback_data="records"),
-                     InlineKeyboardButton("➕ ساخت دیگر", callback_data="add_start")],
-                    [InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")]
+                    [InlineKeyboardButton(t(lang, "btn_view_records"), callback_data="records"),
+                     InlineKeyboardButton(t(lang, "btn_add_another"), callback_data="add_start")],
+                    [InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")]
                 ])
                 await update.message.reply_text(
-                    f"✅ رکورد ساخته شد!\n\n"
-                    f"`{record_type}` │ {full_name} → `{content}`",
+                    t(lang, "add_success", type=record_type, name=full_name, value=content),
                     reply_markup=kb, parse_mode="Markdown"
                 )
             except Exception as e:
-                await update.message.reply_text(f"❌ خطا: {str(e)}", reply_markup=back_menu_kb())
+                await update.message.reply_text(t(lang, "error", err=str(e)), reply_markup=back_menu_kb(lang))
 
     try:
         telegram_bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
