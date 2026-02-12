@@ -393,17 +393,16 @@ async def run_all_tests():
     print(f"API Base: {API_BASE}")
     print()
     
-    tests = [
+    # First run basic tests
+    basic_tests = [
         ("Backend Health Check", test_health_check),
-        ("Config Endpoint", test_config_endpoint),
+        ("Config Endpoint", test_config_endpoint), 
         ("Plans Endpoint", test_plans_endpoint),
-        ("Telegram Status Endpoint", test_telegram_status_endpoint),
-        ("Telegram Debug Endpoint", test_telegram_debug_endpoint),
     ]
     
     results = []
     
-    for test_name, test_func in tests:
+    for test_name, test_func in basic_tests:
         print(f"{Colors.BLUE}--- {test_name} ---{Colors.RESET}")
         try:
             result = await test_func()
@@ -412,6 +411,50 @@ async def run_all_tests():
             print_error(f"Test {test_name} failed with exception: {str(e)}")
             results.append((test_name, False))
         print()
+    
+    # Admin authentication and admin-only tests
+    print(f"{Colors.BLUE}--- ADMIN AUTHENTICATION & ENDPOINTS ---{Colors.RESET}")
+    
+    # Try admin login first
+    print(f"{Colors.BLUE}--- Admin Login ---{Colors.RESET}")
+    try:
+        admin_token = await test_admin_login()
+        if admin_token:
+            results.append(("Admin Login", True))
+            
+            # Run admin-only tests with token
+            admin_tests = [
+                ("Admin Bot Status", lambda: test_admin_bot_status(admin_token)),
+                ("Admin Zones", lambda: test_admin_zones(admin_token)),
+                ("Admin Settings", lambda: test_admin_settings(admin_token)),
+            ]
+            
+            for test_name, test_func in admin_tests:
+                print(f"{Colors.BLUE}--- {test_name} ---{Colors.RESET}")
+                try:
+                    result = await test_func()
+                    results.append((test_name, result))
+                except Exception as e:
+                    print_error(f"Test {test_name} failed with exception: {str(e)}")
+                    results.append((test_name, False))
+                print()
+        else:
+            results.append(("Admin Login", False))
+            print_warning("Skipping admin endpoint tests due to login failure")
+            # Add failed results for skipped tests
+            results.extend([
+                ("Admin Bot Status", False),
+                ("Admin Zones", False), 
+                ("Admin Settings", False)
+            ])
+    except Exception as e:
+        print_error(f"Admin login failed with exception: {str(e)}")
+        results.append(("Admin Login", False))
+        results.extend([
+            ("Admin Bot Status", False),
+            ("Admin Zones", False),
+            ("Admin Settings", False)
+        ])
     
     # Summary
     print(f"{Colors.BLUE}{'='*60}{Colors.RESET}")
