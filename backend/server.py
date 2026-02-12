@@ -1122,7 +1122,7 @@ async def start_telegram_bot():
                 await send_not_logged_in(query, lang)
                 return
             await query.edit_message_text(
-                t(lang, "welcome_logged_in", name=user['name'], domain=DOMAIN_NAME),
+                t(lang, "welcome_logged_in", name=user['name'], domain=CF_ZONE_DOMAIN),
                 reply_markup=main_menu_kb(lang)
             )
 
