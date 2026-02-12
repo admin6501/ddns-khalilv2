@@ -1422,47 +1422,95 @@ async def start_telegram_bot():
         except Exception:
             pass
 
-    try:
-        telegram_bot_app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-        telegram_bot_app.add_handler(CommandHandler("start", cmd_start))
-        telegram_bot_app.add_handler(CommandHandler("login", cmd_login))
-        telegram_bot_app.add_handler(CallbackQueryHandler(callback_handler))
-        telegram_bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-        telegram_bot_app.add_error_handler(error_handler)
+    import asyncio
 
-        commands = [
-            BotCommand("start", "منوی اصلی / Main Menu"),
-        ]
+    # Stop any existing bot instance first (handles restart scenarios)
+    await stop_telegram_bot()
+    await asyncio.sleep(1)
 
-        await telegram_bot_app.initialize()
-        
-        # Explicitly delete any existing webhook before polling
-        await telegram_bot_app.bot.delete_webhook(drop_pending_updates=True)
-        logger.info("Telegram bot: webhook deleted, starting polling...")
-        
-        await telegram_bot_app.bot.set_my_commands(commands)
-        await telegram_bot_app.start()
-        await telegram_bot_app.updater.start_polling(
-            drop_pending_updates=True,
-            allowed_updates=Update.ALL_TYPES
-        )
-        bot_info = await telegram_bot_app.bot.get_me()
-        logger.info(f"Telegram bot started successfully: @{bot_info.username} (ID: {bot_info.id})")
-    except Exception as e:
-        logger.error(f"Telegram bot failed to start: {e}", exc_info=True)
-        telegram_bot_app = None
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            telegram_bot_app = (
+                ApplicationBuilder()
+                .token(TELEGRAM_BOT_TOKEN)
+                .read_timeout(30)
+                .write_timeout(30)
+                .connect_timeout(15)
+                .pool_timeout(5)
+                .build()
+            )
+            telegram_bot_app.add_handler(CommandHandler("start", cmd_start))
+            telegram_bot_app.add_handler(CommandHandler("login", cmd_login))
+            telegram_bot_app.add_handler(CallbackQueryHandler(callback_handler))
+            telegram_bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+            telegram_bot_app.add_error_handler(error_handler)
+
+            commands = [
+                BotCommand("start", "منوی اصلی / Main Menu"),
+            ]
+
+            await telegram_bot_app.initialize()
+
+            # Delete webhook & wait for old connections to clear
+            await telegram_bot_app.bot.delete_webhook(drop_pending_updates=True)
+            logger.info("Telegram bot: webhook deleted, waiting for old connections to clear...")
+            await asyncio.sleep(2)
+
+            await telegram_bot_app.bot.set_my_commands(commands)
+            await telegram_bot_app.start()
+            await telegram_bot_app.updater.start_polling(
+                drop_pending_updates=False,
+                allowed_updates=Update.ALL_TYPES,
+                poll_interval=1.0,
+                read_timeout=15,
+            )
+            bot_info = await telegram_bot_app.bot.get_me()
+            logger.info(f"Telegram bot started successfully: @{bot_info.username} (ID: {bot_info.id})")
+            return  # Success — exit retry loop
+        except Exception as e:
+            logger.error(f"Telegram bot start attempt {attempt}/{max_retries} failed: {e}", exc_info=True)
+            # Cleanup failed instance
+            try:
+                if telegram_bot_app:
+                    if telegram_bot_app.updater and telegram_bot_app.updater.running:
+                        await telegram_bot_app.updater.stop()
+                    if telegram_bot_app.running:
+                        await telegram_bot_app.stop()
+                    await telegram_bot_app.shutdown()
+            except Exception:
+                pass
+            telegram_bot_app = None
+            if attempt < max_retries:
+                wait = attempt * 3
+                logger.info(f"Telegram bot: retrying in {wait}s ...")
+                await asyncio.sleep(wait)
+
+    logger.error("Telegram bot: all start attempts failed.")
 
 async def stop_telegram_bot():
-    """Stop the Telegram bot gracefully."""
+    """Stop the Telegram bot gracefully with timeout protection."""
     global telegram_bot_app
-    if telegram_bot_app:
-        try:
-            await telegram_bot_app.updater.stop()
-            await telegram_bot_app.stop()
-            await telegram_bot_app.shutdown()
-            logger.info("Telegram bot stopped")
-        except Exception as e:
-            logger.warning(f"Telegram bot stop error: {e}")
+    if telegram_bot_app is None:
+        return
+    import asyncio
+    try:
+        # Stop updater (polling)
+        if telegram_bot_app.updater and telegram_bot_app.updater.running:
+            await asyncio.wait_for(telegram_bot_app.updater.stop(), timeout=10)
+            logger.info("Telegram bot: updater stopped")
+        # Stop application
+        if telegram_bot_app.running:
+            await asyncio.wait_for(telegram_bot_app.stop(), timeout=10)
+            logger.info("Telegram bot: application stopped")
+        # Shutdown (release resources)
+        await asyncio.wait_for(telegram_bot_app.shutdown(), timeout=10)
+        logger.info("Telegram bot stopped successfully")
+    except asyncio.TimeoutError:
+        logger.warning("Telegram bot: stop timed out, forcing cleanup")
+    except Exception as e:
+        logger.warning(f"Telegram bot stop error: {e}")
+    finally:
         telegram_bot_app = None
 
 # Include router
