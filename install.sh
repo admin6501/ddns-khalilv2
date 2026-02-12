@@ -355,8 +355,11 @@ collect_variables() {
   echo ""
   echo -e "  ${B}Telegram Bot ${D}(optional)${N}"
   TELEGRAM_BOT_TOKEN=""
+  TELEGRAM_ADMIN_ID=""
   confirm "Enable Telegram bot? y/N" "N" && {
     clean_read TELEGRAM_BOT_TOKEN "Bot token (from @BotFather): "
+    echo -e "  ${D}  To get your Telegram ID, message @userinfobot${N}"
+    clean_read TELEGRAM_ADMIN_ID "Admin Telegram ID (numeric, optional): "
   }
 
   echo ""
@@ -366,7 +369,12 @@ collect_variables() {
   echo -e "    Admin:       ${G}$ADMIN_EMAIL${N}"
   echo -e "    MongoDB:     ${G}$MONGO_URL${N} / ${G}$DB_NAME${N}"
   echo -e "    Path:        ${G}$INSTALL_DIR${N}"
-  [[ -n "$TELEGRAM_BOT_TOKEN" ]] && echo -e "    Telegram:    ${G}Enabled${N}" || echo -e "    Telegram:    ${D}Disabled${N}"
+  if [[ -n "$TELEGRAM_BOT_TOKEN" ]]; then
+    echo -e "    Telegram:    ${G}Enabled${N}"
+    [[ -n "$TELEGRAM_ADMIN_ID" ]] && echo -e "    TG Admin ID: ${G}$TELEGRAM_ADMIN_ID${N}" || echo -e "    TG Admin ID: ${D}Not set${N}"
+  else
+    echo -e "    Telegram:    ${D}Disabled${N}"
+  fi
   draw_line
   echo ""
   confirm "Proceed? Y/n" "Y" || fatal "Cancelled."
