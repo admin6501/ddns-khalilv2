@@ -310,6 +310,7 @@ async def login(user_data: UserLogin):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
     token = create_token(user["id"], user["email"])
+    await log_activity(user["id"], user["email"], "login", "User logged in")
     return {
         "token": token,
         "user": {
