@@ -115,17 +115,17 @@ export default function Landing() {
               <div className="p-4 font-mono text-sm space-y-2 text-start">
                 <div className="flex gap-3">
                   <span className="text-primary">A</span>
-                  <span className="text-muted-foreground">mysite.{DOMAIN}</span>
+                  <span className="text-muted-foreground">mysite.{DNS_DOMAIN}</span>
                   <span className="text-foreground ms-auto">192.168.1.1</span>
                 </div>
                 <div className="flex gap-3">
                   <span className="text-green-500">CNAME</span>
-                  <span className="text-muted-foreground">blog.{DOMAIN}</span>
+                  <span className="text-muted-foreground">blog.{DNS_DOMAIN}</span>
                   <span className="text-foreground ms-auto">myblog.com</span>
                 </div>
                 <div className="flex gap-3 opacity-40">
                   <span className="text-cyan-500">AAAA</span>
-                  <span className="text-muted-foreground">app.{DOMAIN}</span>
+                  <span className="text-muted-foreground">app.{DNS_DOMAIN}</span>
                   <span className="text-foreground ms-auto">2001:db8::1</span>
                 </div>
               </div>
