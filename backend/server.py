@@ -1237,12 +1237,17 @@ async def start_telegram_bot():
 
         # ── Help Login (start login flow) ──
         elif data == "help_login":
-            context.user_data.clear()
+            saved_lang = context.user_data.get("lang", lang)
+            context.user_data.pop("login_step", None)
+            context.user_data.pop("login_email", None)
+            context.user_data.pop("add_step", None)
+            context.user_data.pop("add_type", None)
+            context.user_data.pop("add_name", None)
+            context.user_data["lang"] = saved_lang
             context.user_data["login_step"] = "email"
-            context.user_data["lang"] = lang
-            kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_cancel"), callback_data="main_menu")]])
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(saved_lang, "btn_cancel"), callback_data="main_menu")]])
             await query.edit_message_text(
-                t(lang, "help_login_title") + "\n\n" + t(lang, "help_login_body"),
+                t(saved_lang, "help_login_title") + "\n\n" + t(saved_lang, "help_login_body"),
                 parse_mode="Markdown",
                 reply_markup=kb
             )
