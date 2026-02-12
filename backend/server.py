@@ -1513,6 +1513,29 @@ async def stop_telegram_bot():
     finally:
         telegram_bot_app = None
 
+# ============== TELEGRAM BOT STATUS ==============
+
+@api_router.get("/telegram/status")
+async def telegram_status():
+    """Health check for Telegram bot."""
+    if not TELEGRAM_BOT_TOKEN:
+        return {"status": "disabled", "reason": "No token configured"}
+    if telegram_bot_app is None:
+        return {"status": "stopped", "reason": "Bot not running"}
+    try:
+        bot_info = await telegram_bot_app.bot.get_me()
+        running = telegram_bot_app.running
+        polling = telegram_bot_app.updater.running if telegram_bot_app.updater else False
+        return {
+            "status": "running" if (running and polling) else "degraded",
+            "bot_username": f"@{bot_info.username}",
+            "bot_id": bot_info.id,
+            "app_running": running,
+            "polling_running": polling
+        }
+    except Exception as e:
+        return {"status": "error", "reason": str(e)}
+
 # Include router
 app.include_router(api_router)
 
