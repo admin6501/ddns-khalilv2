@@ -1320,7 +1320,12 @@ do_import() {
       # Rebuild frontend with new config
       info "Rebuilding frontend with restored config..."
       cd "${INSTALL_DIR}/frontend"
+      ensure_swap
+      export NODE_OPTIONS="--max-old-space-size=3072"
+      export GENERATE_SOURCEMAP=false
       yarn build 2>/dev/null || yarn build || warn "Frontend build failed"
+      unset NODE_OPTIONS GENERATE_SOURCEMAP
+      cleanup_swap
       success "Frontend rebuilt"
     fi
   fi
