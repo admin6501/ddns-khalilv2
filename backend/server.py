@@ -1531,7 +1531,7 @@ async def start_telegram_bot():
             await log_activity(user["id"], user["email"], "telegram_linked", f"Telegram linked: {chat_id}")
             await update.message.reply_text(
                 t(bot_lang, "login_success", name=user['name'], email=email),
-                reply_markup=main_menu_kb(bot_lang)
+                reply_markup=main_menu_kb(bot_lang, chat_id)
             )
             return
 
