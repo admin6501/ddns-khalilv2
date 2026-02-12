@@ -112,3 +112,48 @@ Testing Agent re-ran comprehensive backend tests and confirmed:
 - No import errors or crashes detected ✅
 
 **Final Status:** DNS Management Platform backend is fully operational and ready for production use.
+
+---
+
+## NEW ADMIN ENDPOINTS TESTING (Testing Agent - Feb 12, 2026) ✅
+
+**Test Date:** Feb 12, 2026  
+**Backend URL:** https://telegram-deploy-auto.preview.emergentagent.com  
+**Status: ALL NEW ADMIN ENDPOINTS WORKING PERFECTLY ✅**
+
+### Comprehensive Admin API Testing Results
+
+**Authentication Test:**
+- ✅ **POST /api/auth/login** - Admin credentials (admin@khalilv2.com / admin123456) work perfectly
+  - Returns JWT token and user object with role: "admin"
+  - Authentication successful, token format correct
+  
+**Admin Endpoints (with Bearer token authentication):**
+- ✅ **GET /api/admin/bot/status** - Returns bot status information correctly
+  - Fields: has_token: false, masked_token: "", admin_id: "", bot_running: false, bot_username: ""
+  - Correctly indicates no bot token configured (expected behavior)
+  
+- ✅ **GET /api/admin/zones** - Returns Cloudflare zones list correctly  
+  - Primary zone found: khalilv2.com (79b5a3d0d515be2041ad9988e1c56005) - active
+  - Proper zone structure with id, domain, is_primary, status fields
+  
+- ✅ **GET /api/admin/settings** - Returns site settings correctly
+  - All settings fields present: telegram_id, telegram_url, contact messages, referral_bonus_per_invite: 1, default_free_records: 2
+
+**Existing Endpoints Re-verified:**
+- ✅ **GET /api/config** - Returns site configuration (domain: khalilv2.com, dns_domain: khalilv2.com)
+- ✅ **GET /api/plans** - Returns 3 plans (free: 2 records, pro: 50 records, enterprise: 500 records)
+
+### Security Testing
+- ✅ **Bearer Token Authentication** - All admin endpoints properly require and validate Bearer tokens
+- ✅ **Admin Role Verification** - Endpoints correctly check admin role before granting access
+- ✅ **Token Format** - JWT tokens properly formatted and functional
+- ✅ **Authorization Header** - "Authorization: Bearer {token}" format working correctly
+
+### Test Summary
+**Total Tests Run:** 7  
+**Passed:** 7  
+**Failed:** 0  
+**Success Rate:** 100%
+
+All requested NEW admin endpoints are working perfectly with proper authentication and authorization. The backend is fully operational and ready for admin panel integration.
