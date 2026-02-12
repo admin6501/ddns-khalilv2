@@ -1467,13 +1467,9 @@ async def start_telegram_bot():
                 )
             else:
                 # Not logged in → show welcome + login button
-                kb = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(t(new_lang, "btn_login"), callback_data="help_login")],
-                    [InlineKeyboardButton(t(new_lang, "btn_lang"), callback_data="toggle_lang_prelogin")]
-                ])
                 await query.edit_message_text(
                     t(new_lang, "welcome_new", domain=CF_ZONE_DOMAIN),
-                    reply_markup=kb
+                    reply_markup=prelogin_kb(new_lang, chat_id)
                 )
             return
 
@@ -1482,13 +1478,9 @@ async def start_telegram_bot():
             new_lang = "en" if lang == "fa" else "fa"
             context.user_data["lang"] = new_lang
             await set_chat_lang(chat_id, new_lang, user)
-            kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton(t(new_lang, "btn_login"), callback_data="help_login")],
-                [InlineKeyboardButton(t(new_lang, "btn_lang"), callback_data="toggle_lang_prelogin")]
-            ])
             await query.edit_message_text(
                 t(new_lang, "welcome_new", domain=CF_ZONE_DOMAIN),
-                reply_markup=kb
+                reply_markup=prelogin_kb(new_lang, chat_id)
             )
             return
 
