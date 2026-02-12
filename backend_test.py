@@ -160,61 +160,197 @@ async def test_telegram_status_endpoint():
         print_error(f"Telegram status endpoint error: {str(e)}")
         return False
 
-async def test_telegram_debug_endpoint():
-    """Test GET /api/telegram/debug - Should return debug information"""
-    print_info("Testing GET /api/telegram/debug...")
+async def test_admin_login():
+    """Test POST /api/auth/login with admin credentials"""
+    print_info("Testing POST /api/auth/login (admin)...")
+    
+    admin_credentials = {
+        "email": "admin@khalilv2.com",
+        "password": "admin123456"
+    }
     
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.get(f"{API_BASE}/telegram/debug")
+            response = await client.post(
+                f"{API_BASE}/auth/login",
+                json=admin_credentials,
+                headers={"Content-Type": "application/json"}
+            )
             
             if response.status_code == 200:
                 data = response.json()
-                print_success("Telegram debug endpoint working")
+                print_success("Admin login successful")
                 
-                # Check debug fields
-                token_configured = data.get('token_configured', False)
-                app_instance = data.get('app_instance', False)
-                app_running = data.get('app_running', False)
-                polling_running = data.get('polling_running', False)
-                errors = data.get('errors', [])
-                
-                print_info(f"  Token configured: {token_configured}")
-                print_info(f"  App instance: {app_instance}")
-                print_info(f"  App running: {app_running}")
-                print_info(f"  Polling running: {polling_running}")
-                
-                if not token_configured:
-                    print_success("  ✅ CORRECT: No token configured (expected)")
-                    if "No TELEGRAM_BOT_TOKEN in .env" in errors:
-                        print_success("  ✅ CORRECT: Error correctly identifies missing token")
-                
-                if errors:
-                    print_info("  Errors:")
-                    for error in errors:
-                        print_info(f"    - {error}")
-                
-                # Check bot info if available
-                if 'bot_info' in data and data['bot_info']:
-                    bot_info = data['bot_info']
-                    print_info(f"  Bot Info: @{bot_info.get('username', 'unknown')} (ID: {bot_info.get('id', 'unknown')})")
-                
-                # Check webhook info
-                if 'webhook_info' in data and data['webhook_info']:
-                    webhook_info = data['webhook_info']
-                    webhook_url = webhook_info.get('url', '')
-                    if webhook_url:
-                        print_warning(f"  Webhook set: {webhook_url}")
+                # Check required fields
+                if 'token' in data and 'user' in data:
+                    token = data['token']
+                    user = data['user']
+                    
+                    print_success(f"  Token received: {token[:20]}...")
+                    print_success(f"  User: {user.get('name')} ({user.get('email')})")
+                    print_success(f"  Role: {user.get('role')}")
+                    
+                    if user.get('role') == 'admin':
+                        print_success("  ✅ CORRECT: User has admin role")
+                        return token  # Return token for subsequent tests
                     else:
-                        print_info("  No webhook configured (good for polling)")
+                        print_warning(f"  User role is '{user.get('role')}', expected 'admin'")
+                        return token
+                else:
+                    print_error("  Missing token or user in response")
+                    return None
+            elif response.status_code == 401:
+                print_error("Admin login failed: Invalid credentials")
+                print_info("  This might indicate the admin user doesn't exist or password is wrong")
+                return None
+            else:
+                print_error(f"Admin login failed: {response.status_code} - {response.text}")
+                return None
+                
+    except Exception as e:
+        print_error(f"Admin login error: {str(e)}")
+        return None
+
+async def test_admin_bot_status(token):
+    """Test GET /api/admin/bot/status with Bearer token"""
+    print_info("Testing GET /api/admin/bot/status...")
+    
+    if not token:
+        print_error("No token available for admin bot status test")
+        return False
+    
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.get(
+                f"{API_BASE}/admin/bot/status",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                print_success("Admin bot status endpoint working")
+                
+                # Check expected fields
+                expected_fields = ['has_token', 'masked_token', 'admin_id', 'bot_running', 'bot_username']
+                for field in expected_fields:
+                    if field in data:
+                        value = data[field]
+                        print_success(f"  {field}: {value}")
+                    else:
+                        print_warning(f"  Missing field: {field}")
                 
                 return True
+            elif response.status_code == 401:
+                print_error("Admin bot status failed: Unauthorized (invalid token)")
+                return False
+            elif response.status_code == 403:
+                print_error("Admin bot status failed: Forbidden (not admin)")
+                return False
             else:
-                print_error(f"Telegram debug endpoint failed: {response.status_code} - {response.text}")
+                print_error(f"Admin bot status failed: {response.status_code} - {response.text}")
                 return False
                 
     except Exception as e:
-        print_error(f"Telegram debug endpoint error: {str(e)}")
+        print_error(f"Admin bot status error: {str(e)}")
+        return False
+
+async def test_admin_zones(token):
+    """Test GET /api/admin/zones with Bearer token"""
+    print_info("Testing GET /api/admin/zones...")
+    
+    if not token:
+        print_error("No token available for admin zones test")
+        return False
+    
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.get(
+                f"{API_BASE}/admin/zones",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                print_success("Admin zones endpoint working")
+                
+                if 'zones' in data:
+                    zones = data['zones']
+                    print_success(f"  Found {len(zones)} zones")
+                    
+                    for zone in zones:
+                        zone_id = zone.get('id', 'unknown')
+                        domain = zone.get('domain', 'unknown')
+                        is_primary = zone.get('is_primary', False)
+                        status = zone.get('status', 'unknown')
+                        
+                        primary_text = " (PRIMARY)" if is_primary else ""
+                        print_info(f"  Zone: {domain} ({zone_id}) - {status}{primary_text}")
+                        
+                        if is_primary and domain == "khalilv2.com":
+                            print_success("  ✅ CORRECT: Primary zone khalilv2.com found")
+                
+                    return True
+                else:
+                    print_warning("No 'zones' field in response")
+                    print_info(f"Response: {data}")
+                    return False
+            elif response.status_code == 401:
+                print_error("Admin zones failed: Unauthorized (invalid token)")
+                return False
+            elif response.status_code == 403:
+                print_error("Admin zones failed: Forbidden (not admin)")
+                return False
+            else:
+                print_error(f"Admin zones failed: {response.status_code} - {response.text}")
+                return False
+                
+    except Exception as e:
+        print_error(f"Admin zones error: {str(e)}")
+        return False
+
+async def test_admin_settings(token):
+    """Test GET /api/admin/settings with Bearer token"""
+    print_info("Testing GET /api/admin/settings...")
+    
+    if not token:
+        print_error("No token available for admin settings test")
+        return False
+    
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.get(
+                f"{API_BASE}/admin/settings",
+                headers={"Authorization": f"Bearer {token}"}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                print_success("Admin settings endpoint working")
+                
+                # Check common settings fields
+                settings_fields = ['telegram_id', 'telegram_url', 'contact_message_en', 
+                                 'contact_message_fa', 'referral_bonus_per_invite', 'default_free_records']
+                
+                for field in settings_fields:
+                    if field in data:
+                        value = data[field]
+                        print_info(f"  {field}: {value}")
+                    else:
+                        print_warning(f"  Missing setting: {field}")
+                
+                return True
+            elif response.status_code == 401:
+                print_error("Admin settings failed: Unauthorized (invalid token)")
+                return False
+            elif response.status_code == 403:
+                print_error("Admin settings failed: Forbidden (not admin)")
+                return False
+            else:
+                print_error(f"Admin settings failed: {response.status_code} - {response.text}")
+                return False
+                
+    except Exception as e:
+        print_error(f"Admin settings error: {str(e)}")
         return False
 
 async def test_health_check():
