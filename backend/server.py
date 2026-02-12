@@ -482,6 +482,9 @@ async def update_record(record_id: str, update_data: DNSRecordUpdate, current_us
         {"$set": update_fields}
     )
     
+    await log_activity(current_user["id"], current_user["email"], "record_updated",
+                       f"{record['record_type']} {record['full_name']} → {content}")
+    
     record.update(update_fields)
     return record
 
