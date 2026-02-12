@@ -29,10 +29,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DOMAIN } from '../config/site';
+import { useConfig } from '../contexts/ConfigContext';
 
 export default function Admin() {
   const { t, lang } = useLanguage();
   const { user } = useAuth();
+  const config = useConfig();
+  const DNS_DOMAIN = config.dns_domain || DOMAIN;
   const [activeTab, setActiveTab] = useState('users');
 
   // Users
