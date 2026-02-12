@@ -970,6 +970,25 @@ with open('build/index.html','w') as f: f.write(h)
   fi
   success "Frontend rebuilt"
 
+  # Check if TELEGRAM_ADMIN_ID is missing but bot token exists
+  local ENV_FILE="${INSTALL_DIR}/backend/.env"
+  local HAS_TOKEN=$(grep "^TELEGRAM_BOT_TOKEN=." "$ENV_FILE" 2>/dev/null)
+  local HAS_ADMIN_ID=$(grep "^TELEGRAM_ADMIN_ID=." "$ENV_FILE" 2>/dev/null)
+  if [[ -n "$HAS_TOKEN" && -z "$HAS_ADMIN_ID" ]]; then
+    echo ""
+    info "Telegram bot is enabled but no Admin ID is set."
+    echo -e "  ${D}To get your Telegram ID, message @userinfobot${N}"
+    clean_read NEW_ADMIN_ID "Admin Telegram ID (numeric, optional): "
+    if [[ -n "$NEW_ADMIN_ID" ]]; then
+      if grep -q "^TELEGRAM_ADMIN_ID=" "$ENV_FILE" 2>/dev/null; then
+        sed -i "s|^TELEGRAM_ADMIN_ID=.*|TELEGRAM_ADMIN_ID=${NEW_ADMIN_ID}|" "$ENV_FILE"
+      else
+        echo "TELEGRAM_ADMIN_ID=${NEW_ADMIN_ID}" >> "$ENV_FILE"
+      fi
+      success "Admin ID saved: ${NEW_ADMIN_ID}"
+    fi
+  fi
+
   info "Restarting services..."
   clear_bot_lock
   systemctl restart ${SERVICE_NAME}
