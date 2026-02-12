@@ -101,6 +101,22 @@ export default function Admin() {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
 
+  // Bot management
+  const [botStatus, setBotStatus] = useState({ has_token: false, masked_token: '', admin_id: '', bot_running: false, bot_username: '' });
+  const [botLoading, setBotLoading] = useState(false);
+  const [newBotToken, setNewBotToken] = useState('');
+  const [newAdminId, setNewAdminId] = useState('');
+  const [botActionLoading, setBotActionLoading] = useState('');
+  const [showTokenInput, setShowTokenInput] = useState(false);
+
+  // Zones management
+  const [zones, setZones] = useState([]);
+  const [zonesLoading, setZonesLoading] = useState(false);
+  const [showAddZone, setShowAddZone] = useState(false);
+  const [newZoneId, setNewZoneId] = useState('');
+  const [newZoneToken, setNewZoneToken] = useState('');
+  const [addZoneLoading, setAddZoneLoading] = useState(false);
+
   const fetchUsers = useCallback(async () => {
     setUsersLoading(true);
     try {
