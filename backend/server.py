@@ -999,27 +999,28 @@ async def start_telegram_bot():
     async def get_user_by_chat(chat_id):
         return await db.users.find_one({"telegram_chat_id": str(chat_id)}, {"_id": 0})
 
-    async def send_not_logged_in(update_or_query):
-        kb = [[InlineKeyboardButton("🔑 ورود به اکانت", callback_data="help_login")]]
-        msg = "❌ ابتدا باید وارد اکانت خود شوید."
+    async def send_not_logged_in(update_or_query, lang="fa"):
+        kb = [[InlineKeyboardButton(t(lang, "btn_login"), callback_data="help_login")]]
+        msg = t(lang, "not_logged_in")
         if hasattr(update_or_query, 'message') and update_or_query.message:
             await update_or_query.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb))
         else:
             await update_or_query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(kb))
 
     # ── Main Menu Keyboard ───────────────────────────────────
-    def main_menu_kb():
+    def main_menu_kb(lang="fa"):
         return InlineKeyboardMarkup([
-            [InlineKeyboardButton("📝 رکوردهای من", callback_data="records"),
-             InlineKeyboardButton("➕ ساخت رکورد", callback_data="add_start")],
-            [InlineKeyboardButton("📊 وضعیت اکانت", callback_data="status"),
-             InlineKeyboardButton("🗑 حذف رکورد", callback_data="delete_list")],
-            [InlineKeyboardButton("🔗 لینک دعوت", callback_data="referral"),
-             InlineKeyboardButton("🚪 خروج", callback_data="logout")],
+            [InlineKeyboardButton(t(lang, "btn_records"), callback_data="records"),
+             InlineKeyboardButton(t(lang, "btn_add"), callback_data="add_start")],
+            [InlineKeyboardButton(t(lang, "btn_status"), callback_data="status"),
+             InlineKeyboardButton(t(lang, "btn_delete"), callback_data="delete_list")],
+            [InlineKeyboardButton(t(lang, "btn_referral"), callback_data="referral"),
+             InlineKeyboardButton(t(lang, "btn_logout"), callback_data="logout")],
+            [InlineKeyboardButton(t(lang, "btn_lang"), callback_data="toggle_lang")],
         ])
 
-    def back_menu_kb():
-        return InlineKeyboardMarkup([[InlineKeyboardButton("🔙 منوی اصلی", callback_data="main_menu")]])
+    def back_menu_kb(lang="fa"):
+        return InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")]])
 
     # ── /start ───────────────────────────────────────────────
     async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
