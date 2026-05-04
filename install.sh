@@ -1680,6 +1680,9 @@ do_change_domain() {
   clean_read NEW_DOMAIN "New domain name (e.g. newdomain.com): "
   [[ -z "$NEW_DOMAIN" ]] && { warn "Domain is required."; pause_menu; return; }
 
+  # Sanitise: strip whitespace, scheme, trailing slash
+  NEW_DOMAIN="$(echo "$NEW_DOMAIN" | tr -d '[:space:]' | sed -E 's|^https?://||; s|/.*$||')"
+
   if [[ "$NEW_DOMAIN" == "$OLD_DOMAIN" ]]; then
     warn "Same domain. Nothing to change."
     pause_menu
@@ -1689,6 +1692,7 @@ do_change_domain() {
   echo ""
   echo -e "  ${R}⚠ WARNING:${N} This will:"
   echo -e "    • Remove SSL certificate for ${R}${OLD_DOMAIN}${N}"
+  echo -e "    • Remove old Nginx config for ${R}${OLD_DOMAIN}${N}"
   echo -e "    • Update Nginx to ${G}${NEW_DOMAIN}${N}"
   echo -e "    • Update backend & frontend configs"
   echo -e "    • Obtain new SSL for ${G}${NEW_DOMAIN}${N}"
@@ -1696,28 +1700,26 @@ do_change_domain() {
   echo ""
   confirm "Are you sure? y/N" "N" || { pause_menu; return; }
 
-  # Step 1: Stop services
+  # ── Step 1: Stop services ────────────────────────────────────────
   info "Stopping services..."
   systemctl stop ${SERVICE_NAME} 2>/dev/null
-  
-  # Step 2: Update backend .env
+
+  # ── Step 2: Update backend .env ──────────────────────────────────
   info "Updating backend config..."
   sed -i "s|CORS_ORIGINS=.*|CORS_ORIGINS=https://${NEW_DOMAIN}|" "$ENV_FILE"
   sed -i "s|DOMAIN_NAME=.*|DOMAIN_NAME=${NEW_DOMAIN}|" "$ENV_FILE"
-  
-  # Also update CF_ZONE_DOMAIN if it was the old domain
   if grep -q "CF_ZONE_DOMAIN=${OLD_DOMAIN}" "$ENV_FILE" 2>/dev/null; then
     sed -i "s|CF_ZONE_DOMAIN=.*|CF_ZONE_DOMAIN=${NEW_DOMAIN}|" "$ENV_FILE"
   fi
 
-  # Step 3: Update frontend .env
+  # ── Step 3: Update frontend .env ─────────────────────────────────
   info "Updating frontend config..."
   cat > "$FRONTEND_ENV" << EOF
 REACT_APP_BACKEND_URL=https://${NEW_DOMAIN}
 REACT_APP_DOMAIN_NAME=${NEW_DOMAIN}
 EOF
 
-  # Step 4: Update index.html
+  # ── Step 4: Update index.html (generic title — set dynamically by JS) ──
   info "Updating index.html..."
   cat > "${INSTALL_DIR}/frontend/public/index.html" << EOF
 <!doctype html>
@@ -1725,9 +1727,11 @@ EOF
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta name="description" content="Free DNS Management on ${NEW_DOMAIN}" />
-    <title>${NEW_DOMAIN} - DNS Management</title>
+    <meta name="theme-color" content="#22C55E" />
+    <meta name="description" content="Free DNS Management. Create A, AAAA, CNAME and NS records on your own subdomain in seconds." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <title>Free DNS Management</title>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
@@ -1736,31 +1740,59 @@ EOF
 </html>
 EOF
 
-  # Step 5: Rebuild frontend
-  info "Rebuilding frontend..."
+  # ── Step 5: Rebuild frontend ─────────────────────────────────────
+  info "Rebuilding frontend (this may take a minute)..."
   cd "${INSTALL_DIR}/frontend"
   yarn build 2>/dev/null || npx react-scripts build 2>/dev/null || {
     warn "Frontend build failed! You may need to rebuild manually."
   }
 
-  # Step 6: Remove old SSL
-  info "Removing old SSL certificate..."
+  # ── Step 6: Stop Nginx, FULL cleanup of old vhost & SSL ─────────
+  info "Removing old Nginx config & SSL for ${OLD_DOMAIN}..."
+  systemctl stop nginx 2>/dev/null
+
+  # 6a) Remove the old nginx site (regardless of whether NGINX_CONF was renamed)
+  rm -f /etc/nginx/sites-enabled/${NGINX_CONF}
+  rm -f /etc/nginx/sites-available/${NGINX_CONF}
+  rm -f /etc/nginx/sites-enabled/${OLD_DOMAIN} 2>/dev/null
+  rm -f /etc/nginx/sites-available/${OLD_DOMAIN} 2>/dev/null
+  rm -f /etc/nginx/sites-enabled/default 2>/dev/null
+
+  # 6b) Remove old SSL certificate FILES + certbot record
   certbot delete --cert-name "${OLD_DOMAIN}" --non-interactive 2>/dev/null || true
+  rm -rf "/etc/letsencrypt/live/${OLD_DOMAIN}" 2>/dev/null
+  rm -rf "/etc/letsencrypt/archive/${OLD_DOMAIN}" 2>/dev/null
+  rm -f  "/etc/letsencrypt/renewal/${OLD_DOMAIN}.conf" 2>/dev/null
 
-  # Step 7: Update global DOMAIN variable
+  # ── Step 7: Update global DOMAIN variable & PERSIST it ──────────
   DOMAIN="${NEW_DOMAIN}"
+  save_config
 
-  # Step 8: Reconfigure Nginx with new domain
-  info "Reconfiguring Nginx..."
+  # ── Step 8: Re-create Nginx (HTTP only first, so certbot can challenge) ──
+  info "Configuring Nginx for ${NEW_DOMAIN}..."
   configure_nginx
+  systemctl start nginx 2>/dev/null
+  sleep 2
 
-  # Step 9: Obtain new SSL
+  # ── Step 9: Obtain new SSL non-interactively ────────────────────
   info "Obtaining SSL for ${NEW_DOMAIN}..."
-  SSL_EMAIL=$(grep "^ADMIN_EMAIL=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- || echo "admin@${NEW_DOMAIN}")
-  obtain_ssl
+  SSL_EMAIL=$(grep "^ADMIN_EMAIL=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true)
+  [[ -z "$SSL_EMAIL" ]] && SSL_EMAIL="admin@${NEW_DOMAIN}"
 
-  # Step 10: Start services
-  info "Starting services..."
+  # Direct certbot call (skip interactive confirm in obtain_ssl)
+  certbot --nginx -d "${NEW_DOMAIN}" --non-interactive --agree-tos -m "$SSL_EMAIL" --redirect 2>&1 | tail -5
+  if [[ $? -ne 0 ]] || [[ ! -f "/etc/letsencrypt/live/${NEW_DOMAIN}/fullchain.pem" ]]; then
+    warn "SSL request failed. Make sure ${NEW_DOMAIN} A record points to this server's IP."
+    warn "You can re-run SSL later from menu (option 9)."
+  else
+    success "SSL obtained for ${NEW_DOMAIN}!"
+    # Re-write nginx with proper SSL block via obtain_ssl helper (it rewrites & reloads)
+    obtain_ssl_finalize
+  fi
+
+  # ── Step 10: Reload nginx + restart backend ─────────────────────
+  info "Reloading services..."
+  nginx -t 2>&1 >/dev/null && systemctl reload nginx
   clear_bot_lock
   systemctl start ${SERVICE_NAME}
   sleep 3
@@ -1772,9 +1804,66 @@ EOF
   echo -e "  ${B}New domain:${N} ${G}${NEW_DOMAIN}${N}"
   echo -e "  ${B}Website:${N}    ${C}https://${NEW_DOMAIN}${N}"
   echo ""
-  echo -e "  ${R}Important:${N} Make sure ${G}${NEW_DOMAIN}${N} DNS points to this server!"
+  echo -e "  ${R}Important:${N} Make sure ${G}${NEW_DOMAIN}${N} DNS A record points to this server!"
   echo ""
   pause_menu
+}
+
+# Helper: rewrite the SSL-enabled nginx vhost (extracted from obtain_ssl)
+# Used by do_change_domain after a successful certbot --nginx call so that
+# the vhost reflects our exact desired SPA + reverse-proxy config.
+obtain_ssl_finalize() {
+  local SSL_CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
+  local SSL_KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
+  [[ ! -f "$SSL_CERT" ]] && return 1
+
+  cat > /etc/nginx/sites-available/${NGINX_CONF} << NGXEOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+    return 301 https://\$host\$request_uri;
+}
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${DOMAIN};
+
+    ssl_certificate ${SSL_CERT};
+    ssl_certificate_key ${SSL_KEY};
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    root ${INSTALL_DIR}/frontend/build;
+    index index.html;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 300;
+    }
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript image/svg+xml;
+}
+NGXEOF
+  ln -sf /etc/nginx/sites-available/${NGINX_CONF} /etc/nginx/sites-enabled/
+  nginx -t 2>&1 >/dev/null && systemctl reload nginx
 }
 
 main() {
