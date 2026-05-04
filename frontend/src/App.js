@@ -14,41 +14,24 @@ import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
 import ForgotPassword from "./pages/ForgotPassword";
 import SecurePasswordInit from "./components/SecurePasswordInit";
+import RouteLoader from "./components/RouteLoader";
 
 function ProtectedRoute({ children }) {
   const { user, loading, pendingVerification } = useAuth();
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <RouteLoader />;
   if (pendingVerification) return <Navigate to="/login" replace />;
   return user ? children : <Navigate to="/login" replace />;
 }
 
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <RouteLoader />;
   return user ? <Navigate to="/dashboard" replace /> : children;
 }
 
 function AdminRoute({ children }) {
   const { user, loading } = useAuth();
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <RouteLoader />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== 'admin') return <Navigate to="/dashboard" replace />;
   return children;

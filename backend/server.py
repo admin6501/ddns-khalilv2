@@ -187,17 +187,32 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-async def send_verification_email(email: str, code: str):
-    """Send verification code via Gmail SMTP."""
+def _send_smtp_html(email: str, subject: str, html_body: str, log_label: str = "email") -> bool:
+    """Send an HTML email via Gmail SMTP. Returns True on success, False on any failure."""
     if not SMTP_EMAIL or not SMTP_PASSWORD:
-        logger.warning("SMTP not configured, skipping verification email")
+        logger.warning(f"SMTP not configured, skipping {log_label} to {email}")
         return False
     try:
         msg = MIMEMultipart()
         msg['From'] = SMTP_EMAIL
         msg['To'] = email
-        msg['Subject'] = f'Email Verification Code: {code}'
-        body = f"""
+        msg['Subject'] = subject
+        msg.attach(MIMEText(html_body, 'html'))
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(SMTP_EMAIL, SMTP_PASSWORD)
+        server.sendmail(SMTP_EMAIL, email, msg.as_string())
+        server.quit()
+        logger.info(f"{log_label} sent to {email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send {log_label} to {email}: {e}")
+        return False
+
+
+async def send_verification_email(email: str, code: str):
+    """Send verification code via Gmail SMTP."""
+    body = f"""
         <html><body style="font-family:Arial,sans-serif;direction:rtl;text-align:center;padding:20px;">
         <h2>کد تأیید ایمیل / Email Verification Code</h2>
         <div style="background:#f0f0f0;padding:20px;border-radius:10px;display:inline-block;margin:20px 0;">
@@ -207,17 +222,7 @@ async def send_verification_email(email: str, code: str):
         <p>This code is valid for 10 minutes.</p>
         </body></html>
         """
-        msg.attach(MIMEText(body, 'html'))
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(SMTP_EMAIL, SMTP_PASSWORD)
-        server.sendmail(SMTP_EMAIL, email, msg.as_string())
-        server.quit()
-        logger.info(f"Verification email sent to {email}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to send verification email to {email}: {e}")
-        return False
+    return _send_smtp_html(email, f'Email Verification Code: {code}', body, "Verification email")
 
 def generate_verification_code():
     return str(random.randint(100000, 999999))
@@ -249,6 +254,31 @@ async def log_activity(user_id: str, user_email: str, action: str, details: str 
         await db.activity_logs.insert_one(log_doc)
     except Exception as e:
         logger.warning(f"Failed to log activity: {e}")
+
+async def _resolve_plan_record_limit(plan_id: str) -> int:
+    """Look up record limit for a plan_id. Falls back to PLAN_LIMITS cache.
+    Raises HTTPException(400) if the plan is unknown."""
+    plan_doc = await db.plans.find_one({"plan_id": plan_id}, {"_id": 0})
+    if plan_doc:
+        return plan_doc["record_limit"]
+    if plan_id not in PLAN_LIMITS:
+        raise HTTPException(status_code=400, detail=f"Invalid plan: {plan_id}")
+    return PLAN_LIMITS[plan_id]
+
+
+async def _delete_user_with_records(uid: str) -> int:
+    """Delete a user, their CF records (best-effort) and their dns_records docs.
+    Returns the number of CF records that existed for that user."""
+    user_records = await db.dns_records.find({"user_id": uid}, {"_id": 0}).to_list(500)
+    for rec in user_records:
+        try:
+            await cf_delete_record(rec["cf_record_id"], zone_id=rec.get("zone_id"))
+        except Exception as e:
+            logger.warning(f"Failed to delete CF record {rec['cf_record_id']}: {e}")
+    await db.dns_records.delete_many({"user_id": uid})
+    await db.users.delete_one({"id": uid})
+    return len(user_records)
+
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
@@ -575,14 +605,7 @@ async def password_reset_status():
 
 async def send_password_reset_email(email: str, code: str):
     """Send a 6-digit password reset code via Gmail SMTP."""
-    if not SMTP_EMAIL or not SMTP_PASSWORD:
-        return False
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = SMTP_EMAIL
-        msg['To'] = email
-        msg['Subject'] = f'Password Reset Code: {code}'
-        body = f"""
+    body = f"""
         <html><body style="font-family:Arial,sans-serif;direction:rtl;text-align:center;padding:20px;">
         <h2>کد بازنشانی رمز عبور / Password Reset Code</h2>
         <p>برای بازنشانی رمز عبور خود از کد زیر استفاده کنید:</p>
@@ -595,17 +618,7 @@ async def send_password_reset_email(email: str, code: str):
         <p style="color:#888;font-size:12px;margin-top:24px;">If you did not request this, simply ignore this email.</p>
         </body></html>
         """
-        msg.attach(MIMEText(body, 'html'))
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(SMTP_EMAIL, SMTP_PASSWORD)
-        server.sendmail(SMTP_EMAIL, email, msg.as_string())
-        server.quit()
-        logger.info(f"Password reset email sent to {email}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to send password reset email to {email}: {e}")
-        return False
+    return _send_smtp_html(email, f'Password Reset Code: {code}', body, "Password reset email")
 
 
 @api_router.post("/auth/forgot-password")
@@ -1290,31 +1303,13 @@ async def admin_delete_user(user_id: str, admin: dict = Depends(get_admin_user))
         raise HTTPException(status_code=404, detail="User not found")
     if user.get("role") == "admin":
         raise HTTPException(status_code=400, detail="Cannot delete admin user")
-    
-    # Delete all user's CF records
-    user_records = await db.dns_records.find({"user_id": user_id}, {"_id": 0}).to_list(500)
-    for rec in user_records:
-        try:
-            await cf_delete_record(rec["cf_record_id"], zone_id=rec.get("zone_id"))
-        except Exception as e:
-            logger.warning(f"Failed to delete CF record {rec['cf_record_id']}: {e}")
-    
-    await db.dns_records.delete_many({"user_id": user_id})
-    await db.users.delete_one({"id": user_id})
-    return {"message": f"User {user['email']} and {len(user_records)} records deleted"}
+
+    deleted_records = await _delete_user_with_records(user_id)
+    return {"message": f"User {user['email']} and {deleted_records} records deleted"}
 
 @api_router.put("/admin/users/{user_id}/plan")
 async def admin_update_plan(user_id: str, plan_data: PlanUpdate, admin: dict = Depends(get_admin_user)):
-    # Look up plan from DB
-    plan_doc = await db.plans.find_one({"plan_id": plan_data.plan}, {"_id": 0})
-    if not plan_doc:
-        # Fallback to hardcoded
-        if plan_data.plan not in PLAN_LIMITS:
-            raise HTTPException(status_code=400, detail=f"Invalid plan: {plan_data.plan}")
-        new_limit = PLAN_LIMITS[plan_data.plan]
-    else:
-        new_limit = plan_doc["record_limit"]
-    
+    new_limit = await _resolve_plan_record_limit(plan_data.plan)
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -1337,13 +1332,7 @@ async def admin_change_password(user_id: str, pw_data: PasswordUpdate, admin: di
 
 @api_router.post("/admin/users/bulk/plan")
 async def admin_bulk_update_plan(data: BulkPlanUpdate, admin: dict = Depends(get_admin_user)):
-    plan_doc = await db.plans.find_one({"plan_id": data.plan}, {"_id": 0})
-    if not plan_doc:
-        if data.plan not in PLAN_LIMITS:
-            raise HTTPException(status_code=400, detail=f"Invalid plan: {data.plan}")
-        new_limit = PLAN_LIMITS[data.plan]
-    else:
-        new_limit = plan_doc["record_limit"]
+    new_limit = await _resolve_plan_record_limit(data.plan)
     
     # Filter out admin users
     non_admin_ids = []
@@ -1370,19 +1359,9 @@ async def admin_bulk_delete_users(data: BulkDeleteUsers, admin: dict = Depends(g
         user = await db.users.find_one({"id": uid}, {"_id": 0})
         if not user or user.get("role") == "admin":
             continue
-        
-        # Delete CF records
-        user_records = await db.dns_records.find({"user_id": uid}, {"_id": 0}).to_list(500)
-        for rec in user_records:
-            try:
-                await cf_delete_record(rec["cf_record_id"], zone_id=rec.get("zone_id"))
-            except Exception as e:
-                logger.warning(f"Failed to delete CF record {rec['cf_record_id']}: {e}")
-        
-        await db.dns_records.delete_many({"user_id": uid})
-        await db.users.delete_one({"id": uid})
+        rec_count = await _delete_user_with_records(uid)
         deleted_count += 1
-        deleted_records += len(user_records)
+        deleted_records += rec_count
     
     return {"message": f"{deleted_count} users and {deleted_records} records deleted", "deleted_count": deleted_count}
 
@@ -2895,22 +2874,25 @@ async def start_telegram_bot():
     def back_menu_kb(lang="fa"):
         return InlineKeyboardMarkup([[InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")]])
 
+    # ── Helper: clear all in-progress flow state (preserves language) ─
+    _FLOW_KEYS = (
+        "login_step", "login_email",
+        "reg_step", "reg_name", "reg_email",
+        "add_step", "add_type", "add_name", "add_zone_id", "add_zone_domain",
+        "adm_edit_step", "adm_edit_field",
+        "chpass_step", "adm_chpass_step", "adm_chpass_uid",
+        "verify_email", "verify_user_id",
+    )
+
+    def _clear_flow_state(context):
+        for k in _FLOW_KEYS:
+            context.user_data.pop(k, None)
+
     # ── /start ───────────────────────────────────────────────
     async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             # Only clear flow-specific data, preserve language
-            context.user_data.pop("login_step", None)
-            context.user_data.pop("login_email", None)
-            context.user_data.pop("reg_step", None)
-            context.user_data.pop("reg_name", None)
-            context.user_data.pop("reg_email", None)
-            context.user_data.pop("add_step", None)
-            context.user_data.pop("add_type", None)
-            context.user_data.pop("add_name", None)
-            context.user_data.pop("add_zone_id", None)
-            context.user_data.pop("add_zone_domain", None)
-            context.user_data.pop("adm_edit_step", None)
-            context.user_data.pop("adm_edit_field", None)
+            _clear_flow_state(context)
 
             chat_id = update.effective_chat.id
             logger.info(f"Telegram /start from chat_id={chat_id}")
@@ -2959,16 +2941,7 @@ async def start_telegram_bot():
     async def cmd_login(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             saved_lang = context.user_data.get("lang", "fa")
-            context.user_data.pop("login_step", None)
-            context.user_data.pop("login_email", None)
-            context.user_data.pop("reg_step", None)
-            context.user_data.pop("reg_name", None)
-            context.user_data.pop("reg_email", None)
-            context.user_data.pop("add_step", None)
-            context.user_data.pop("add_type", None)
-            context.user_data.pop("add_name", None)
-            context.user_data.pop("add_zone_id", None)
-            context.user_data.pop("add_zone_domain", None)
+            _clear_flow_state(context)
             context.user_data["lang"] = saved_lang
             context.user_data["login_step"] = "email"
             kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(saved_lang, "btn_cancel"), callback_data="main_menu")]])
@@ -3056,16 +3029,7 @@ async def start_telegram_bot():
         # ── Help Login (start login flow) ──
         elif data == "help_login":
             saved_lang = context.user_data.get("lang", lang)
-            context.user_data.pop("login_step", None)
-            context.user_data.pop("login_email", None)
-            context.user_data.pop("reg_step", None)
-            context.user_data.pop("reg_name", None)
-            context.user_data.pop("reg_email", None)
-            context.user_data.pop("add_step", None)
-            context.user_data.pop("add_type", None)
-            context.user_data.pop("add_name", None)
-            context.user_data.pop("add_zone_id", None)
-            context.user_data.pop("add_zone_domain", None)
+            _clear_flow_state(context)
             context.user_data["lang"] = saved_lang
             context.user_data["login_step"] = "email"
             kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(saved_lang, "btn_cancel"), callback_data="main_menu")]])
@@ -3078,16 +3042,7 @@ async def start_telegram_bot():
         # ── Help Register (start registration flow) ──
         elif data == "help_register":
             saved_lang = context.user_data.get("lang", lang)
-            context.user_data.pop("login_step", None)
-            context.user_data.pop("login_email", None)
-            context.user_data.pop("reg_step", None)
-            context.user_data.pop("reg_name", None)
-            context.user_data.pop("reg_email", None)
-            context.user_data.pop("add_step", None)
-            context.user_data.pop("add_type", None)
-            context.user_data.pop("add_name", None)
-            context.user_data.pop("add_zone_id", None)
-            context.user_data.pop("add_zone_domain", None)
+            _clear_flow_state(context)
             context.user_data["lang"] = saved_lang
             context.user_data["reg_step"] = "name"
             kb = InlineKeyboardMarkup([[InlineKeyboardButton(t(saved_lang, "btn_cancel"), callback_data="main_menu")]])
@@ -3505,18 +3460,11 @@ async def start_telegram_bot():
                 if not target or target.get("role") == "admin":
                     await query.edit_message_text("❌ Cannot delete", reply_markup=admin_back_kb(lang))
                     return
-                # Delete CF records
-                user_records = await db.dns_records.find({"user_id": uid}, {"_id": 0}).to_list(500)
-                for rec in user_records:
-                    try:
-                        await cf_delete_record(rec["cf_record_id"], zone_id=rec.get("zone_id"))
-                    except Exception as e:
-                        logger.warning(f"Failed to delete CF record {rec['cf_record_id']}: {e}")
-                await db.dns_records.delete_many({"user_id": uid})
-                await db.users.delete_one({"id": uid})
-                await log_activity("admin", "admin", "user_deleted", f"{target['email']} + {len(user_records)} records (via Telegram)")
+                # Delete user, CF records, and dns_records (best-effort)
+                rec_count = await _delete_user_with_records(uid)
+                await log_activity("admin", "admin", "user_deleted", f"{target['email']} + {rec_count} records (via Telegram)")
                 await query.edit_message_text(
-                    t(lang, "admin_del_success", email=target['email'], count=len(user_records)),
+                    t(lang, "admin_del_success", email=target['email'], count=rec_count),
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙", callback_data="adm_users_0")]]),
                     parse_mode="HTML"
                 )

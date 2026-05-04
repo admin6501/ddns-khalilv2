@@ -33,6 +33,7 @@ import {
 import { toast } from 'sonner';
 import { DOMAIN } from '../config/site';
 import { useConfig } from '../contexts/ConfigContext';
+import { downloadBlob, fileTimestamp } from '../lib/utils';
 
 export default function Admin() {
   const { t, lang } = useLanguage();
@@ -873,11 +874,7 @@ export default function Admin() {
                 <Button size="sm" variant="outline" disabled={allRecords.length === 0} onClick={async () => {
                   try {
                     const res = await adminAPI.exportAllRecordsCSV();
-                    const url = URL.createObjectURL(res.data);
-                    const a = document.createElement('a');
-                    a.href = url; a.download = `all-dns-records-${new Date().toISOString().slice(0,19).replace(/[:.]/g,'-')}.csv`;
-                    document.body.appendChild(a); a.click();
-                    document.body.removeChild(a); URL.revokeObjectURL(url);
+                    downloadBlob(res.data, `all-dns-records-${fileTimestamp()}.csv`);
                   } catch (err) { toast.error(err.response?.data?.detail || 'Export failed'); }
                 }} data-testid="admin-export-records-btn">
                   <Download className="w-4 h-4 me-2" />{t('export_csv')}
@@ -2107,11 +2104,7 @@ export default function Admin() {
               <Button size="sm" variant="outline" onClick={async () => {
                 try {
                   const res = await adminAPI.downloadAdminTemplate();
-                  const url = URL.createObjectURL(res.data);
-                  const a = document.createElement('a');
-                  a.href = url; a.download = 'all-records-template.csv';
-                  document.body.appendChild(a); a.click();
-                  document.body.removeChild(a); URL.revokeObjectURL(url);
+                  downloadBlob(res.data, 'all-records-template.csv');
                 } catch (err) { toast.error(err.response?.data?.detail || 'Failed'); }
               }} data-testid="admin-download-template-btn">
                 <Download className="w-3.5 h-3.5 me-1.5" />{t('download_template')}

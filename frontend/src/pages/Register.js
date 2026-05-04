@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import { authAPI } from '../lib/api';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Terminal, Loader2, Gift, Mail, CheckCircle, ArrowRight, Users, Activity, Zap } from 'lucide-react';
+import { Terminal, Loader2, Gift, ArrowRight, Users, Activity, Zap } from 'lucide-react';
 import { DOMAIN } from '../config/site';
 import { useConfig } from '../contexts/ConfigContext';
 import toast from 'react-hot-toast';
 import GoogleLoginButton from '../components/GoogleLoginButton';
+import { EmailVerifyPanel, VerifiedSuccessPanel } from '../components/EmailVerifyPanel';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -36,9 +36,6 @@ export default function Register() {
   }, []);
 
   const [verificationRequired, setVerificationRequired] = useState(false);
-  const [verifyCode, setVerifyCode] = useState('');
-  const [verifyLoading, setVerifyLoading] = useState(false);
-  const [resendLoading, setResendLoading] = useState(false);
   const [verified, setVerified] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -64,34 +61,10 @@ export default function Register() {
     }
   };
 
-  const handleVerify = async (e) => {
-    e.preventDefault();
-    setError('');
-    setVerifyLoading(true);
-    try {
-      await authAPI.verifyEmail(email.toLowerCase(), verifyCode);
-      setVerified(true);
-      toast.success(t('verify_success'));
-      await completeVerification();
-      setTimeout(() => navigate('/dashboard'), 1500);
-    } catch (err) {
-      setError(err.response?.data?.detail || t('verify_invalid'));
-    } finally {
-      setVerifyLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    setResendLoading(true);
-    setError('');
-    try {
-      await authAPI.resendCode(email.toLowerCase());
-      toast.success(t('verify_resend'));
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to resend');
-    } finally {
-      setResendLoading(false);
-    }
+  const handleVerified = async () => {
+    setVerified(true);
+    await completeVerification();
+    setTimeout(() => navigate('/dashboard'), 1500);
   };
 
   return (
@@ -167,53 +140,9 @@ export default function Register() {
           </div>
 
           {verificationRequired && !verified ? (
-            <div className="animate-fade-in-up">
-              <div className="mono-label text-primary mb-3">// VERIFY · EMAIL</div>
-              <h1 className="text-3xl font-semibold tracking-tight mb-2">{t('verify_title')}</h1>
-              <p className="text-sm text-muted-foreground mb-2">{t('verify_sent')}</p>
-              <p className="font-mono text-sm text-primary mb-8 flex items-center gap-2">
-                <Mail className="w-3.5 h-3.5" />{email}
-              </p>
-
-              {error && (
-                <div className="p-3 bg-destructive/10 text-destructive text-xs border border-destructive/20 mb-4 font-mono">! {error}</div>
-              )}
-
-              <form onSubmit={handleVerify} className="space-y-6">
-                <div>
-                  <Label className="mono-label mb-2 block">{t('verify_code_placeholder')}</Label>
-                  <Input type="text" maxLength={6} value={verifyCode}
-                    onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="000000"
-                    className="text-center text-2xl tracking-[0.6em] font-mono h-14 rounded-sm"
-                    dir="ltr" required />
-                </div>
-                <button type="submit" disabled={verifyLoading || verifyCode.length !== 6}
-                  className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90 font-mono uppercase tracking-widest text-xs font-semibold transition-all amber-glow flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                  {verifyLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-                  {t('verify_submit')}
-                </button>
-              </form>
-
-              <div className="mt-6 text-center">
-                <button onClick={handleResend} disabled={resendLoading}
-                  className="font-mono text-xs uppercase tracking-widest text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1.5">
-                  {resendLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
-                  {t('verify_resend')}
-                </button>
-              </div>
-            </div>
+            <EmailVerifyPanel email={email} label="// VERIFY · EMAIL" onVerified={handleVerified} />
           ) : verified ? (
-            <div className="animate-scale-in text-center py-8">
-              <div className="w-16 h-16 border border-emerald-500/50 bg-emerald-500/10 mx-auto mb-5 flex items-center justify-center">
-                <CheckCircle className="w-8 h-8 text-emerald-500" />
-              </div>
-              <div className="mono-label text-emerald-500 mb-2">// ACCOUNT · CREATED</div>
-              <h2 className="text-2xl font-semibold">{t('verify_success')}</h2>
-              <p className="text-sm text-muted-foreground mt-2 font-mono">
-                ⇢ {lang === 'fa' ? 'در حال انتقال…' : 'redirecting…'}
-              </p>
-            </div>
+            <VerifiedSuccessPanel label="// ACCOUNT · CREATED" isFa={lang === 'fa'} />
           ) : (
             <div className="animate-fade-in-up">
               <div className="editorial-mark text-primary mb-3">{lang === 'fa' ? 'ساخت حساب رایگان' : 'CREATE ACCOUNT'}</div>

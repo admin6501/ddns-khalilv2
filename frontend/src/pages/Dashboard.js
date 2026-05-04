@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { DOMAIN } from '../config/site';
 import { useConfig } from '../contexts/ConfigContext';
+import { downloadBlob, fileTimestamp } from '../lib/utils';
 
 const FREE_RECORD_LIMIT = 2;
 
@@ -158,19 +159,12 @@ export default function Dashboard() {
     finally { setFormLoading(false); }
   };
 
-  const triggerBlobDownload = (blob, filename) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
-  };
+  const triggerBlobDownload = (blob, filename) => downloadBlob(blob, filename);
 
   const handleExportCSV = async () => {
     try {
       const res = await dnsAPI.exportCSV();
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      triggerBlobDownload(res.data, `dns-records-${stamp}.csv`);
+      triggerBlobDownload(res.data, `dns-records-${fileTimestamp()}.csv`);
     } catch (err) { alert(err.response?.data?.detail || 'Export failed'); }
   };
 
