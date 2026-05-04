@@ -21,7 +21,7 @@ import tempfile
 import shutil
 import csv
 import io
-from fastapi.responses import Response, FileResponse
+from fastapi.responses import Response
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env', interpolate=False)
@@ -52,19 +52,6 @@ PLAN_LIMITS = {"free": 2, "pro": 50, "enterprise": 500}
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
-
-
-@api_router.get("/download/khwarizmi-report")
-async def download_khwarizmi_report():
-    """Temporary endpoint for the Khwarizmi festival project report."""
-    file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "khwarizmi_project_report.docx")
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Report file not found")
-    return FileResponse(
-        path=file_path,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename="khwarizmi_project_report.docx",
-    )
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
