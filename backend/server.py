@@ -1654,7 +1654,6 @@ async def do_backup(mongo_url: str, db_name: str, bot_token: str, admin_id: str)
         included_config = []
         env_sources = [
             (ROOT_DIR / ".env", "backend.env"),
-            (ROOT_DIR.parent / "frontend" / ".env", "frontend.env"),
         ]
         for src, dest_name in env_sources:
             try:
