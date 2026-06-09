@@ -1645,6 +1645,35 @@ async def do_backup(mongo_url: str, db_name: str, bot_token: str, admin_id: str)
             logger.error(f"mongodump failed: {result.stderr}")
             return False, f"mongodump failed: {result.stderr[:200]}"
 
+        # ── Include configuration (.env) so the backup is a full restore ──
+        # The dump_dir already holds <db_name>/*.bson; we add a config/ folder
+        # next to it so the archive contains both the database and the .env files.
+        # install.sh's Import locates these automatically (config/backend.env).
+        config_dir = os.path.join(dump_dir, "config")
+        os.makedirs(config_dir, exist_ok=True)
+        included_config = []
+        env_sources = [
+            (ROOT_DIR / ".env", "backend.env"),
+            (ROOT_DIR.parent / "frontend" / ".env", "frontend.env"),
+        ]
+        for src, dest_name in env_sources:
+            try:
+                if src.exists():
+                    shutil.copy2(src, os.path.join(config_dir, dest_name))
+                    included_config.append(dest_name)
+            except Exception as e:
+                logger.warning(f"Could not include {dest_name} in backup: {e}")
+
+        # Save a small metadata file for context on restore
+        try:
+            with open(os.path.join(dump_dir, "metadata.txt"), "w") as mf:
+                mf.write(f"export_date={datetime.now(timezone.utc).isoformat()}\n")
+                mf.write(f"db_name={db_name}\n")
+                mf.write(f"domain={DOMAIN_NAME}\n")
+                mf.write(f"source=telegram_backup_bot\n")
+        except Exception as e:
+            logger.warning(f"Could not write backup metadata: {e}")
+
         # Compress to tar.gz
         shutil.make_archive(archive_path.replace(".gz", ""), "gztar", dump_dir)
         archive_file = archive_path.replace(".gz", ".tar.gz")
@@ -1655,6 +1684,10 @@ async def do_backup(mongo_url: str, db_name: str, bot_token: str, admin_id: str)
             return False, "Backup file too large (>49MB) for Telegram"
 
         caption = f"🗄 Backup: {db_name}\n📅 {timestamp}\n📦 {file_size / 1024:.1f} KB"
+        if included_config:
+            caption += f"\n⚙️ Config: {', '.join(included_config)}"
+        else:
+            caption += "\n⚙️ Config: none (database only)"
         async with httpx.AsyncClient(timeout=120.0) as client_http:
             with open(archive_file, "rb") as f:
                 resp = await client_http.post(
