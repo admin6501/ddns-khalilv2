@@ -46,7 +46,13 @@ spinner() {
 clean_read() {
   local varname="$1" prompt="$2" default="${3:-}" raw
   echo -ne "  ${C}▸${N} ${prompt}"
-  read -r raw
+  # Read from the controlling terminal when available so prompts still work
+  # even when the script is launched via `curl ... | bash` (stdin = pipe).
+  if [[ -r /dev/tty ]]; then
+    read -r raw < /dev/tty
+  else
+    read -r raw
+  fi
   raw=$(echo "$raw" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   [[ -z "$raw" && -n "$default" ]] && raw="$default"
   eval "$varname=\"\$raw\""
@@ -55,7 +61,11 @@ clean_read() {
 clean_read_silent() {
   local varname="$1" prompt="$2" raw
   echo -ne "  ${C}▸${N} ${prompt}"
-  read -sr raw
+  if [[ -r /dev/tty ]]; then
+    read -sr raw < /dev/tty
+  else
+    read -sr raw
+  fi
   echo ""
   raw=$(echo "$raw" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
   eval "$varname=\"\$raw\""
@@ -1482,33 +1492,43 @@ do_import() {
   info "Extracting archive..."
   tar -xzf "$IMPORT_FILE" -C "$EXTRACT_DIR" 2>/dev/null || { fail "Failed to extract archive."; rm -rf "$EXTRACT_DIR"; pause_menu; return; }
 
-  # Find the extracted folder
+  # Find the extracted folder (our export nests under ddns-export-*; raw dumps don't)
   local DATA_DIR=$(find "$EXTRACT_DIR" -maxdepth 1 -type d -name "ddns-export-*" | head -1)
   [[ -z "$DATA_DIR" ]] && DATA_DIR="$EXTRACT_DIR"
 
-  # Show metadata
-  if [[ -f "$DATA_DIR/metadata.txt" ]]; then
+  # Show metadata (search anywhere in the archive)
+  local META_FILE=$(find "$EXTRACT_DIR" -type f -name "metadata.txt" 2>/dev/null | head -1)
+  if [[ -n "$META_FILE" && -f "$META_FILE" ]]; then
     echo ""
     echo -e "  ${B}Backup Info:${N}"
     while IFS='=' read -r key val; do
       [[ -n "$key" && -n "$val" ]] && printf "    ${D}%-14s${N} %s\n" "$key:" "$val"
-    done < "$DATA_DIR/metadata.txt"
+    done < "$META_FILE"
     echo ""
   fi
 
-  # Ask what to restore
+  # Ask what to restore — user MUST explicitly choose (no silent default)
   echo -e "  ${B}What to restore:${N}"
-  echo -e "    ${C}1${N}) Database + Config  ${D}(recommended — full restore)${N}"
+  echo -e "    ${C}1${N}) Database + Config  ${D}(full restore)${N}"
   echo -e "    ${C}2${N}) Database only      ${D}(keep current .env config)${N}"
   echo -e "    ${C}3${N}) Config only        ${D}(keep current database)${N}"
   echo ""
-  clean_read restore_mode "Select [1]: " "1"
+
+  local restore_mode=""
+  while true; do
+    clean_read restore_mode "Select restore mode (1/2/3): "
+    case "$restore_mode" in
+      1|2|3) break ;;
+      "") warn "Please choose a mode: enter ${C}1${N}, ${C}2${N} or ${C}3${N}." ;;
+      *)  warn "Invalid choice '${R}${restore_mode}${N}'. Enter ${C}1${N}, ${C}2${N} or ${C}3${N}." ;;
+    esac
+  done
 
   local do_db=false do_conf=false
   case "$restore_mode" in
+    1) do_db=true; do_conf=true ;;
     2) do_db=true ;;
     3) do_conf=true ;;
-    *) do_db=true; do_conf=true ;;
   esac
 
   # ─── Confirm ──────────────────────────────────────────────
@@ -1525,28 +1545,32 @@ do_import() {
   if $do_db; then
     step "Restoring Database"
 
-    if [[ -d "$DATA_DIR/mongodb" ]]; then
-      # mongodump format
-      info "Restoring MongoDB dump..."
+    # Robustly locate a mongodump DB directory: ANY folder that directly
+    # contains .bson files. Works for our export layout (mongodb/<db>/) AND
+    # for raw `mongodump --out` archives where <db>/ sits at the top level.
+    local FIRST_BSON="" DUMP_DB_DIR=""
+    FIRST_BSON=$(find "$EXTRACT_DIR" -type f -name "*.bson" 2>/dev/null | head -1)
+    [[ -n "$FIRST_BSON" ]] && DUMP_DB_DIR=$(dirname "$FIRST_BSON")
 
-      # Find the DB folder inside the dump
-      local DUMP_DB_DIR=$(find "$DATA_DIR/mongodb" -maxdepth 1 -type d ! -name "mongodb" | head -1)
-      local SOURCE_DB_NAME=$(basename "$DUMP_DB_DIR" 2>/dev/null)
+    # Fallback JSON export directory, searched anywhere in the archive.
+    local JSON_DIR=""
+    JSON_DIR=$(find "$EXTRACT_DIR" -type d -name "mongodb_json" 2>/dev/null | head -1)
 
-      if [[ -n "$DUMP_DB_DIR" && -d "$DUMP_DB_DIR" ]]; then
-        if command -v mongorestore &>/dev/null; then
-          # Drop existing and restore
-          mongorestore --uri="$IMPORT_MONGO_URL" --db="$IMPORT_DB_NAME" --dir="$DUMP_DB_DIR" --drop --quiet 2>/dev/null \
-            && success "Database restored from mongodump (${SOURCE_DB_NAME} → ${IMPORT_DB_NAME})" \
-            || fail "mongorestore failed"
-        else
-          fail "mongorestore not found. Install: apt install mongodb-database-tools"
-        fi
+    if [[ -n "$DUMP_DB_DIR" && -d "$DUMP_DB_DIR" ]]; then
+      # mongodump (BSON) format
+      local SOURCE_DB_NAME=$(basename "$DUMP_DB_DIR")
+      info "Found MongoDB dump: ${C}${SOURCE_DB_NAME}${N}  ${D}(${DUMP_DB_DIR#$EXTRACT_DIR/})${N}"
+
+      if command -v mongorestore &>/dev/null; then
+        # Drop existing target db and restore the dump into it
+        mongorestore --uri="$IMPORT_MONGO_URL" --db="$IMPORT_DB_NAME" --dir="$DUMP_DB_DIR" --drop --quiet 2>/dev/null \
+          && success "Database restored from mongodump (${SOURCE_DB_NAME} → ${IMPORT_DB_NAME})" \
+          || fail "mongorestore failed"
       else
-        warn "No database folder found in dump"
+        fail "mongorestore not found. Install: apt install mongodb-database-tools"
       fi
 
-    elif [[ -d "$DATA_DIR/mongodb_json" ]]; then
+    elif [[ -n "$JSON_DIR" && -d "$JSON_DIR" ]]; then
       # JSON format
       info "Restoring from JSON export..."
 
@@ -1554,7 +1578,8 @@ do_import() {
       command -v mongosh &>/dev/null && SHELL_CMD="mongosh" || { command -v mongo &>/dev/null && SHELL_CMD="mongo"; }
 
       if [[ -n "$SHELL_CMD" ]]; then
-        for json_file in "$DATA_DIR/mongodb_json"/*.json; do
+        for json_file in "$JSON_DIR"/*.json; do
+          [[ -f "$json_file" ]] || continue
           local col_name=$(basename "$json_file" .json)
           local doc_count=$(python3 -c "import json; data=json.load(open('$json_file')); print(len(data))" 2>/dev/null || echo "?")
 
@@ -1584,7 +1609,7 @@ do_import() {
         fail "No MongoDB shell found (mongosh/mongo)"
       fi
     else
-      warn "No database backup found in archive"
+      warn "No database backup found in archive (no .bson or JSON export located)"
     fi
   fi
 
@@ -1592,16 +1617,22 @@ do_import() {
   if $do_conf; then
     step "Restoring Configuration"
 
-    if [[ -f "$DATA_DIR/config/backend.env" ]]; then
+    # Locate config files ANYWHERE in the archive (our export saves them under
+    # config/backend.env, but a raw backup may place a backend/.env elsewhere).
+    local SRC_BACKEND_ENV SRC_FRONTEND_ENV
+    SRC_BACKEND_ENV=$(find "$EXTRACT_DIR" -type f \( -name "backend.env" -o -path "*/backend/.env" \) 2>/dev/null | head -1)
+    SRC_FRONTEND_ENV=$(find "$EXTRACT_DIR" -type f \( -name "frontend.env" -o -path "*/frontend/.env" \) 2>/dev/null | head -1)
+
+    if [[ -n "$SRC_BACKEND_ENV" && -f "$SRC_BACKEND_ENV" ]]; then
       # Preserve current MONGO_URL (might be different on new server)
       local current_mongo=$(grep "^MONGO_URL=" "${INSTALL_DIR}/backend/.env" 2>/dev/null)
 
-      cp "$DATA_DIR/config/backend.env" "${INSTALL_DIR}/backend/.env"
+      cp "$SRC_BACKEND_ENV" "${INSTALL_DIR}/backend/.env"
 
       # If user wants to keep local MongoDB URL
       if [[ -n "$current_mongo" ]]; then
         echo ""
-        info "Backup has MongoDB URL: $(grep '^MONGO_URL=' "$DATA_DIR/config/backend.env" | cut -d= -f2-)"
+        info "Backup has MongoDB URL: $(grep '^MONGO_URL=' "$SRC_BACKEND_ENV" | cut -d= -f2-)"
         info "Current server has:     $(echo "$current_mongo" | cut -d= -f2-)"
         confirm "Keep current server's MongoDB URL? Y/n" "Y" && {
           sed -i "s|^MONGO_URL=.*|${current_mongo}|" "${INSTALL_DIR}/backend/.env"
@@ -1611,11 +1642,11 @@ do_import() {
 
       success "Backend .env restored"
     else
-      warn "No backend .env found in backup"
+      warn "No backend .env found in backup — keeping current config (this is normal for a database-only backup)"
     fi
 
-    if [[ -f "$DATA_DIR/config/frontend.env" ]]; then
-      cp "$DATA_DIR/config/frontend.env" "${INSTALL_DIR}/frontend/.env"
+    if [[ -n "$SRC_FRONTEND_ENV" && -f "$SRC_FRONTEND_ENV" ]]; then
+      cp "$SRC_FRONTEND_ENV" "${INSTALL_DIR}/frontend/.env"
       success "Frontend .env restored"
 
       # Rebuild frontend with new config
