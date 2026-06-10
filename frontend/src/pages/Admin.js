@@ -228,9 +228,16 @@ export default function Admin() {
     setSettingsLoading(true);
     try {
       const res = await adminAPI.getSettings();
+      const tgId = (res.data.telegram_id || '').replace(/^@/, '');
+      let tgUrl = res.data.telegram_url || '';
+      // Keep the (disabled) URL field in sync with the username, even if the
+      // stored value is stale/base-only (e.g. after a backup restore).
+      if (tgId && (!tgUrl || tgUrl.replace(/\/+$/, '') === 'https://t.me')) {
+        tgUrl = `https://t.me/${tgId}`;
+      }
       setSettings({
-        telegram_id: res.data.telegram_id || '',
-        telegram_url: res.data.telegram_url || '',
+        telegram_id: tgId,
+        telegram_url: tgUrl,
         contact_message_en: res.data.contact_message_en || '',
         contact_message_fa: res.data.contact_message_fa || '',
         referral_bonus_per_invite: res.data.referral_bonus_per_invite ?? 1,

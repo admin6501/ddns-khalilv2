@@ -28,6 +28,11 @@ export default function Landing() {
   const SITE_DOMAIN = config.install_domain || window.location.hostname.replace(/^www\./, '') || DNS_DOMAIN;
   const isFa = lang === 'fa';
 
+  // Telegram support link — auto-synced with the admin "Telegram username" setting.
+  // Prefer the resolved URL from /config; fall back to building it from the id.
+  const telegramUrl = config.telegram_url
+    || (config.telegram_id ? `https://t.me/${config.telegram_id.replace(/^@/, '')}` : '');
+
   const [plans, setPlans] = useState([]);
   const [openFaq, setOpenFaq] = useState(-1);
 
@@ -442,7 +447,7 @@ export default function Landing() {
               { label: isFa ? 'ثبت‌نام' : 'sign up', href: '/register' },
             ]},
             { title: isFa ? 'پشتیبانی' : 'support', items: [
-              { label: isFa ? 'تلگرام' : 'telegram', href: '#' },
+              { label: isFa ? 'تلگرام' : 'telegram', href: telegramUrl || '#', external: !!telegramUrl },
             ]},
           ].map((col) => (
             <div key={col.title}>
@@ -450,7 +455,12 @@ export default function Landing() {
               <ul className="space-y-2 font-mono text-sm lowercase">
                 {col.items.map((it) => (
                   <li key={it.label}>
-                    <a href={it.href} className="text-foreground/70 hover:text-primary transition-colors">{it.label}</a>
+                    <a
+                      href={it.href}
+                      {...(it.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                      className="text-foreground/70 hover:text-primary transition-colors"
+                      data-testid={`footer-link-${it.label}`}
+                    >{it.label}</a>
                   </li>
                 ))}
               </ul>
