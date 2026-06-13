@@ -303,7 +303,19 @@ export default function Landing() {
           </div>
 
           <div className={`grid gap-0 border border-border bg-background ${plans.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
-            {plans.map((p, i) => (
+            {plans.map((p, i) => {
+              const priceStr = (isFa ? p.price_fa : p.price) || '';
+              const isFree = /free|رایگان|^0$/i.test(priceStr);
+              const handlePlanClick = () => {
+                if (isFree) {
+                  goAuth();
+                } else if (telegramUrl) {
+                  window.open(telegramUrl, '_blank', 'noopener,noreferrer');
+                } else {
+                  goAuth();
+                }
+              };
+              return (
               <div
                 key={p.plan_id}
                 className={`p-6 lg:p-8 ${i > 0 ? 'border-t md:border-t-0 md:border-s border-border' : ''} ${p.popular ? 'bg-primary/5 dark:bg-primary/10 ring-2 ring-primary ring-inset relative' : ''}`}
@@ -341,21 +353,18 @@ export default function Landing() {
                 </ul>
 
                 <button
-                  onClick={goAuth}
+                  onClick={handlePlanClick}
                   className={`w-full h-12 font-mono text-sm lowercase transition-colors inline-flex items-center justify-center gap-2 ${p.popular ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'border border-foreground text-foreground hover:bg-foreground hover:text-background'}`}
                   data-testid={`plan-cta-${p.plan_id}`}
                 >
-                  {(() => {
-                    const priceStr = (isFa ? p.price_fa : p.price) || '';
-                    const isFree = /free|رایگان|^0$/i.test(priceStr);
-                    return isFree
-                      ? (isFa ? 'شروع کن' : 'get started')
-                      : (isFa ? 'تماس با ما' : 'contact us');
-                  })()}
+                  {isFree
+                    ? (isFa ? 'شروع کن' : 'get started')
+                    : (isFa ? 'تماس با ما' : 'contact us')}
                   <ArrowRight weight="bold" className="w-4 h-4 rtl-flip" />
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
