@@ -72,7 +72,7 @@ export default function GoogleLoginButton({ onError }) {
       </div>
 
       {/* Custom-styled button with hidden GoogleLogin overlay */}
-      <div className="relative w-full" data-testid="google-login-button">
+      <div className="relative w-full h-12 overflow-hidden" data-testid="google-login-button">
         {/* Visual button */}
         <button
           type="button"
@@ -84,8 +84,8 @@ export default function GoogleLoginButton({ onError }) {
           <span>{label}</span>
         </button>
 
-        {/* Real Google button (overlay, transparent, fills container) */}
-        <div className="absolute inset-0 opacity-0 cursor-pointer [&>div]:!w-full [&>div]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full">
+        {/* Real Google button (overlay, transparent, clipped to the 48px button area) */}
+        <div className="absolute inset-0 opacity-0 cursor-pointer overflow-hidden [&>div]:!w-full [&>div]:!h-full [&>div>div]:!w-full [&>div>div]:!h-full [&_iframe]:!w-full [&_iframe]:!h-full [&_iframe]:!m-0">
           <GoogleOAuthProvider clientId={config.client_id}>
             <GoogleLogin
               onSuccess={handleSuccess}
