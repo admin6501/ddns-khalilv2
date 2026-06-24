@@ -246,6 +246,7 @@ export default function Dashboard() {
   const isUnlimited = recordLimit === 0;
   const usagePercent = isUnlimited ? 0 : Math.min(100, (recordCount / recordLimit) * 100);
   const canCreate = (isUnlimited || recordCount < recordLimit) && !recordCreationDisabled;
+  const canImport = isUnlimited || recordCount < recordLimit;
 
   const typeColors = {
     A: 'text-primary border-primary/40',
@@ -303,7 +304,7 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => { setImportCsvText(''); setImportResult(null); setShowImportDialog(true); }}
-                disabled={!canCreate}
+                disabled={!canImport}
                 className="h-10 px-3 border border-border bg-card hover:border-primary hover:text-primary font-mono uppercase tracking-widest text-[11px] flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 data-testid="import-csv-btn"
                 title={t('import_csv')}

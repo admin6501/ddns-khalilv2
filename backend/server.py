@@ -1056,14 +1056,14 @@ async def import_records_csv(body: dict, current_user: dict = Depends(get_curren
     # Current user record count for limit enforcement
     current_count = await db.dns_records.count_documents({"user_id": current_user["id"]})
     limit = current_user.get("record_limit", 0) or 0
-    enabled_types = await _get_enabled_record_types()
 
     results = {"success": [], "failed": [], "total": len(rows)}
     for row in rows:
         line = row["line"]
         try:
-            if row["record_type"] not in enabled_types:
-                raise ValueError(f"Record type disabled or unsupported: {row['record_type']}")
+            # CSV import allows any supported type, even if currently toggled off for the create form
+            if row["record_type"] not in SUPPORTED_RECORD_TYPES:
+                raise ValueError(f"Unsupported record type: {row['record_type']}")
             if not row["name"] or not row["content"]:
                 raise ValueError("name and content are required")
             # Resolve zone
