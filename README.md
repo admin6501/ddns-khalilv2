@@ -77,6 +77,7 @@ A fully **open-source DNS management platform** that works with your own domain.
 - **Multi-zone Cloudflare support** with per-zone enable/disable toggle
 - **Google OAuth configuration** directly from the admin panel
 - **Email-signup form toggle** — disable email registration globally (Google-only mode)
+- **Record-type toggles** — enable/disable each DNS record type (A, AAAA, CNAME, NS); disabled types are hidden from the create form, and if all are off, record creation is turned off entirely (web + Telegram bot)
 - Site settings (Telegram contact, referral bonus, email verification)
 - SMTP configuration for email verification & password reset
 - Cloudflare API token management & live test
@@ -94,6 +95,7 @@ A fully **open-source DNS management platform** that works with your own domain.
 - User registration and login
 - Create, edit, delete records
 - **Multi-zone selection** when adding a record (filters disabled zones automatically)
+- **Respects admin record-type toggles** — only enabled types are offered; if all are disabled, record creation is blocked with a notice
 - View record list and account info
 - Admin notifications for new registrations
 - Configurable from admin web panel (token, admin chat ID, start/stop)
@@ -422,7 +424,7 @@ All API routes are prefixed with `/api`.
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
 | `GET` | `/api/plans` | Plans list | — |
-| `GET` | `/api/config` | Site config (domain, contact) | — |
+| `GET` | `/api/config` | Site config (domain, contact, enabled/supported record types) | — |
 | `GET` | `/api/settings/contact` | Telegram contact info | — |
 
 ### Admin Panel
@@ -504,6 +506,8 @@ All API routes are prefixed with `/api`.
 |--------|------|-------------|
 | `GET` | `/api/admin/google-oauth` | Get Google OAuth config (client_id masked) |
 | `PUT` | `/api/admin/google-oauth` | Update Google Client ID / Client Secret / enabled |
+| `GET` | `/api/admin/record-types` | List record types with enabled/disabled state |
+| `PUT` | `/api/admin/record-types` | Set which record types users can create (`{"enabled": ["A","CNAME"]}`) |
 | `GET` | `/api/admin/auth/signup-status` | Whether email signup form is enabled |
 | `PUT` | `/api/admin/auth/toggle-email-signup` | Enable / disable email-and-password signup site-wide |
 
