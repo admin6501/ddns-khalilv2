@@ -713,6 +713,19 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         "created_at": current_user["created_at"]
     }
 
+# ============== RECORD TYPES (admin toggles) ==============
+
+SUPPORTED_RECORD_TYPES = ["A", "AAAA", "CNAME", "NS"]
+TYPE_EMOJI = {"A": "🅰️", "AAAA": "🔤", "CNAME": "🔀", "NS": "🌐"}
+
+async def _get_enabled_record_types():
+    """Return record types currently enabled for user record creation.
+    Stored as a 'disabled' list so newly-supported types default to enabled."""
+    doc = await db.settings.find_one({"key": "record_types"}, {"_id": 0}) or {}
+    disabled = set(doc.get("disabled", []))
+    return [t for t in SUPPORTED_RECORD_TYPES if t not in disabled]
+
+
 # ============== GOOGLE OAUTH ==============
 
 async def _get_google_oauth_settings():
@@ -1043,13 +1056,14 @@ async def import_records_csv(body: dict, current_user: dict = Depends(get_curren
     # Current user record count for limit enforcement
     current_count = await db.dns_records.count_documents({"user_id": current_user["id"]})
     limit = current_user.get("record_limit", 0) or 0
+    enabled_types = await _get_enabled_record_types()
 
     results = {"success": [], "failed": [], "total": len(rows)}
     for row in rows:
         line = row["line"]
         try:
-            if row["record_type"] not in ["A", "AAAA", "CNAME", "NS"]:
-                raise ValueError(f"Unsupported record type: {row['record_type']}")
+            if row["record_type"] not in enabled_types:
+                raise ValueError(f"Record type disabled or unsupported: {row['record_type']}")
             if not row["name"] or not row["content"]:
                 raise ValueError("name and content are required")
             # Resolve zone
@@ -1133,9 +1147,12 @@ async def list_available_zones(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/dns/records", status_code=201)
 async def create_record(record_data: DNSRecordCreate, current_user: dict = Depends(get_current_user)):
-    # Validate record type
-    if record_data.record_type not in ["A", "AAAA", "CNAME", "NS"]:
-        raise HTTPException(status_code=400, detail="Only A, AAAA, CNAME, and NS records are supported")
+    # Validate record type against admin-enabled types
+    enabled_types = await _get_enabled_record_types()
+    if not enabled_types:
+        raise HTTPException(status_code=403, detail="Record creation is currently disabled.")
+    if record_data.record_type not in enabled_types:
+        raise HTTPException(status_code=400, detail=f"Record type '{record_data.record_type}' is not available.")
     
     # Check plan limits (0 means unlimited)
     record_count = await db.dns_records.count_documents({"user_id": current_user["id"]})
@@ -1607,6 +1624,28 @@ async def admin_update_settings(settings_data: SettingsUpdate, admin: dict = Dep
     settings = await db.settings.find_one({"key": "site_settings"}, {"_id": 0})
     return settings
 
+# ============== ADMIN: RECORD TYPES ==============
+
+class RecordTypesUpdate(BaseModel):
+    enabled: List[str]
+
+@api_router.get("/admin/record-types")
+async def admin_get_record_types(admin: dict = Depends(get_admin_user)):
+    enabled = await _get_enabled_record_types()
+    return {"types": [{"type": t, "enabled": t in enabled} for t in SUPPORTED_RECORD_TYPES]}
+
+@api_router.put("/admin/record-types")
+async def admin_update_record_types(payload: RecordTypesUpdate, admin: dict = Depends(get_admin_user)):
+    enabled = [t for t in SUPPORTED_RECORD_TYPES if t in payload.enabled]
+    disabled = [t for t in SUPPORTED_RECORD_TYPES if t not in enabled]
+    await db.settings.update_one(
+        {"key": "record_types"},
+        {"$set": {"key": "record_types", "disabled": disabled}},
+        upsert=True,
+    )
+    await log_activity(admin["id"], admin["email"], "record_types_updated", f"Enabled record types: {', '.join(enabled) or 'none'}")
+    return {"types": [{"type": t, "enabled": t in enabled} for t in SUPPORTED_RECORD_TYPES]}
+
 # Public endpoint for site config (domain, contact info)
 @api_router.get("/config")
 async def get_site_config():
@@ -1616,6 +1655,7 @@ async def get_site_config():
     # Auto-generate telegram_url from telegram_id if URL is empty or just base
     if telegram_id and (not telegram_url or telegram_url.rstrip("/") == "https://t.me"):
         telegram_url = f"https://t.me/{telegram_id.lstrip('@')}"
+    enabled_types = await _get_enabled_record_types()
     return {
         "domain": DOMAIN_NAME,
         "dns_domain": CF_ZONE_DOMAIN,
@@ -1624,6 +1664,8 @@ async def get_site_config():
         "contact_message_en": (settings or {}).get("contact_message_en", ""),
         "contact_message_fa": (settings or {}).get("contact_message_fa", ""),
         "referral_bonus_per_invite": (settings or {}).get("referral_bonus_per_invite", 1),
+        "supported_record_types": SUPPORTED_RECORD_TYPES,
+        "enabled_record_types": enabled_types,
     }
 
 # ============== ADMIN: BACKUP SYSTEM ==============
@@ -2559,6 +2601,7 @@ async def start_telegram_bot():
             "referral_title": "🔗 **لینک دعوت شما:**\n\n",
             "referral_body": "`{link}`\n\n👥 دعوت موفق: {count}\n🎁 رکورد جایزه: {bonus}\n\nلینک بالا را کپی و برای دوستان ارسال کنید!",
             "add_choose_type": "➕ **نوع رکورد را انتخاب کنید:**",
+            "add_types_disabled": "⚠️ در حال حاضر ساخت رکورد غیرفعال است. لطفاً بعداً دوباره تلاش کنید.",
             "add_limit_reached": "❌ به سقف رکورد ({limit}) رسیدید.\nپلن خود را ارتقا دهید.",
             "add_enter_name": "📝 نوع: **{type}**\n\nنام ساب‌دامین را بنویسید:\n{example}\n\nفقط نام را بدون دامنه تایپ کنید:",
             "add_name_invalid": "❌ نام نامعتبر. دوباره تلاش کنید:",
@@ -2683,6 +2726,7 @@ async def start_telegram_bot():
             "referral_title": "🔗 **Your Referral Link:**\n\n",
             "referral_body": "`{link}`\n\n👥 Successful invites: {count}\n🎁 Bonus records: {bonus}\n\nShare this link with friends!",
             "add_choose_type": "➕ **Choose record type:**",
+            "add_types_disabled": "⚠️ Record creation is currently disabled. Please try again later.",
             "add_limit_reached": "❌ Record limit reached ({limit}).\nUpgrade your plan.",
             "add_enter_name": "📝 Type: **{type}**\n\nEnter subdomain name:\n{example}\n\nType only the name without the domain:",
             "add_name_invalid": "❌ Invalid name. Try again:",
@@ -3123,6 +3167,10 @@ async def start_telegram_bot():
             if not user:
                 await send_not_logged_in(query, lang, chat_id)
                 return
+            enabled_types = await _get_enabled_record_types()
+            if not enabled_types:
+                await query.edit_message_text(t(lang, "add_types_disabled"), reply_markup=back_menu_kb(lang))
+                return
             record_count = await db.dns_records.count_documents({"user_id": user["id"]})
             if user["record_limit"] > 0 and record_count >= user["record_limit"]:
                 await query.edit_message_text(
@@ -3156,13 +3204,20 @@ async def start_telegram_bot():
                 # Single zone - store it and go to type selection
                 context.user_data["add_zone_id"] = all_zones[0]["zone_id"] if all_zones else None
                 context.user_data["add_zone_domain"] = all_zones[0]["domain"] if all_zones else CF_ZONE_DOMAIN
-            kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🅰️ A", callback_data="add_type_A"),
-                 InlineKeyboardButton("🔤 AAAA", callback_data="add_type_AAAA")],
-                [InlineKeyboardButton("🔀 CNAME", callback_data="add_type_CNAME"),
-                 InlineKeyboardButton("🌐 NS", callback_data="add_type_NS")],
-                [InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")]
-            ])
+            enabled_types = await _get_enabled_record_types()
+            if not enabled_types:
+                await query.edit_message_text(t(lang, "add_types_disabled"), reply_markup=back_menu_kb(lang))
+                return
+            type_rows = []
+            _row = []
+            for _tp in enabled_types:
+                _row.append(InlineKeyboardButton(f"{TYPE_EMOJI.get(_tp, '')} {_tp}".strip(), callback_data=f"add_type_{_tp}"))
+                if len(_row) == 2:
+                    type_rows.append(_row); _row = []
+            if _row:
+                type_rows.append(_row)
+            type_rows.append([InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")])
+            kb = InlineKeyboardMarkup(type_rows)
             await query.edit_message_text(t(lang, "add_choose_type"), reply_markup=kb, parse_mode="HTML")
 
         elif data.startswith("add_zone_"):
@@ -3177,17 +3232,28 @@ async def start_telegram_bot():
                     zone_domain = zone_doc.get("domain", CF_ZONE_DOMAIN)
             context.user_data["add_zone_id"] = zone_id
             context.user_data["add_zone_domain"] = zone_domain
-            kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🅰️ A", callback_data="add_type_A"),
-                 InlineKeyboardButton("🔤 AAAA", callback_data="add_type_AAAA")],
-                [InlineKeyboardButton("🔀 CNAME", callback_data="add_type_CNAME"),
-                 InlineKeyboardButton("🌐 NS", callback_data="add_type_NS")],
-                [InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")]
-            ])
+            enabled_types = await _get_enabled_record_types()
+            if not enabled_types:
+                await query.edit_message_text(t(lang, "add_types_disabled"), reply_markup=back_menu_kb(lang))
+                return
+            type_rows = []
+            _row = []
+            for _tp in enabled_types:
+                _row.append(InlineKeyboardButton(f"{TYPE_EMOJI.get(_tp, '')} {_tp}".strip(), callback_data=f"add_type_{_tp}"))
+                if len(_row) == 2:
+                    type_rows.append(_row); _row = []
+            if _row:
+                type_rows.append(_row)
+            type_rows.append([InlineKeyboardButton(t(lang, "btn_back"), callback_data="main_menu")])
+            kb = InlineKeyboardMarkup(type_rows)
             await query.edit_message_text(t(lang, "add_choose_type"), reply_markup=kb, parse_mode="HTML")
 
         elif data.startswith("add_type_"):
             record_type = data.replace("add_type_", "")
+            enabled_types = await _get_enabled_record_types()
+            if record_type not in enabled_types:
+                await query.edit_message_text(t(lang, "add_types_disabled"), reply_markup=back_menu_kb(lang))
+                return
             context.user_data["add_type"] = record_type
             context.user_data["add_step"] = "name"
             zone_domain = context.user_data.get("add_zone_domain", CF_ZONE_DOMAIN)
@@ -4045,6 +4111,13 @@ async def start_telegram_bot():
         elif step == "value":
             content = text.strip()
             record_type = context.user_data["add_type"]
+            enabled_types = await _get_enabled_record_types()
+            if record_type not in enabled_types:
+                saved_lang = context.user_data.get("lang", lang)
+                context.user_data.clear()
+                context.user_data["lang"] = saved_lang
+                await update.message.reply_text(t(lang, "add_types_disabled"), reply_markup=back_menu_kb(lang))
+                return
             name = context.user_data["add_name"]
             zone_id = context.user_data.get("add_zone_id")
             zone_domain = context.user_data.get("add_zone_domain", CF_ZONE_DOMAIN)

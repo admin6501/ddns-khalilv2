@@ -113,6 +113,9 @@ export const adminAPI = {
   // Google OAuth
   getGoogleOAuth: () => api.get('/admin/google-oauth'),
   updateGoogleOAuth: (data) => api.put('/admin/google-oauth', data),
+  // Record types
+  getRecordTypes: () => api.get('/admin/record-types'),
+  updateRecordTypes: (enabled) => api.put('/admin/record-types', { enabled }),
 };
 
 // Contact

@@ -36,6 +36,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const config = useConfig();
   const DNS_DOMAIN = config.dns_domain || DOMAIN;
+  const enabledRecordTypes = config.loaded ? (config.enabled_record_types || []) : ['A', 'AAAA', 'CNAME', 'NS'];
+  const recordCreationDisabled = config.loaded && enabledRecordTypes.length === 0;
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -137,7 +139,7 @@ export default function Dashboard() {
 
   const resetForm = () => {
     const defaultZoneId = availableZones.length > 0 ? availableZones[0].id : '';
-    setFormData({ name: '', record_type: 'A', content: '', ttl: 1, proxied: false, zone_id: defaultZoneId });
+    setFormData({ name: '', record_type: enabledRecordTypes[0] || 'A', content: '', ttl: 1, proxied: false, zone_id: defaultZoneId });
     setFormError('');
   };
 
@@ -243,7 +245,7 @@ export default function Dashboard() {
   const recordLimit = user?.record_limit !== undefined && user?.record_limit !== null ? user.record_limit : FREE_RECORD_LIMIT;
   const isUnlimited = recordLimit === 0;
   const usagePercent = isUnlimited ? 0 : Math.min(100, (recordCount / recordLimit) * 100);
-  const canCreate = isUnlimited || recordCount < recordLimit;
+  const canCreate = (isUnlimited || recordCount < recordLimit) && !recordCreationDisabled;
 
   const typeColors = {
     A: 'text-primary border-primary/40',
@@ -359,7 +361,7 @@ export default function Dashboard() {
         </div>
 
         {/* ─── Limit warning ─── */}
-        {!canCreate && (
+        {!canCreate && !recordCreationDisabled && (
           <div className="mb-6 border border-primary/40 bg-primary/5 p-4 flex items-center gap-3 animate-fade-in" data-testid="limit-warning">
             <AlertTriangle className="w-4 h-4 text-primary shrink-0" />
             <div className="font-mono text-xs flex-1">
@@ -377,6 +379,21 @@ export default function Dashboard() {
             >
               <ArrowUpRight className="w-3 h-3" />{t('dash_upgrade')}
             </button>
+          </div>
+        )}
+
+        {/* ─── All record types disabled warning ─── */}
+        {recordCreationDisabled && (
+          <div className="mb-6 border border-destructive/40 bg-destructive/5 p-4 flex items-center gap-3 animate-fade-in" data-testid="record-types-disabled-warning">
+            <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+            <div className="font-mono text-xs flex-1">
+              <span className="uppercase tracking-widest text-destructive">{lang === 'fa' ? '⚠ ایجاد رکورد غیرفعال است' : '⚠ RECORD CREATION DISABLED'}</span>
+              <span className="ms-2 text-muted-foreground">
+                {lang === 'fa'
+                  ? 'در حال حاضر هیچ نوع رکوردی فعال نیست. لطفاً بعداً دوباره تلاش کنید.'
+                  : 'No record types are currently enabled. Please try again later.'}
+              </span>
+            </div>
           </div>
         )}
 
@@ -427,7 +444,8 @@ export default function Dashboard() {
               </div>
               <button
                 onClick={() => { resetForm(); setShowCreateDialog(true); }}
-                className="h-10 px-4 bg-primary text-primary-foreground hover:bg-primary/90 font-mono uppercase tracking-widest text-[11px] font-semibold inline-flex items-center gap-2 transition-all amber-glow"
+                disabled={!canCreate}
+                className="h-10 px-4 bg-primary text-primary-foreground hover:bg-primary/90 font-mono uppercase tracking-widest text-[11px] font-semibold inline-flex items-center gap-2 transition-all amber-glow disabled:opacity-40 disabled:cursor-not-allowed"
                 data-testid="create-first-record-button"
               >
                 <Plus className="w-3.5 h-3.5" />{t('dash_add_record')}
@@ -803,7 +821,7 @@ export default function Dashboard() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {['A', 'AAAA', 'CNAME', 'NS'].map(tp => (
+                    {enabledRecordTypes.map(tp => (
                       <SelectItem key={tp} value={tp} className="font-mono">{tp}</SelectItem>
                     ))}
                   </SelectContent>

@@ -94,6 +94,10 @@ export default function Admin() {
   const [googleOAuth, setGoogleOAuth] = useState({ enabled: false, client_id: '', client_secret: '', client_secret_masked: '', has_secret: false });
   const [googleOAuthSaving, setGoogleOAuthSaving] = useState(false);
 
+  // Record types
+  const [recordTypes, setRecordTypes] = useState([]);
+  const [recordTypesSaving, setRecordTypesSaving] = useState('');
+
   // Plans
   const [plans, setPlans] = useState([]);
   const [plansLoading, setPlansLoading] = useState(true);
@@ -306,9 +310,29 @@ export default function Admin() {
     } catch { /* ignore */ }
   }, []);
 
+  const fetchRecordTypes = useCallback(async () => {
+    try {
+      const res = await adminAPI.getRecordTypes();
+      setRecordTypes(res.data.types || []);
+    } catch { /* ignore */ }
+  }, []);
+
+  const handleToggleRecordType = async (type, enabled) => {
+    setRecordTypesSaving(type);
+    const next = recordTypes.map(rt => rt.type === type ? { ...rt, enabled } : rt);
+    const enabledList = next.filter(rt => rt.enabled).map(rt => rt.type);
+    try {
+      const res = await adminAPI.updateRecordTypes(enabledList);
+      setRecordTypes(res.data.types || next);
+      toast.success(lang === 'fa' ? 'نوع رکورد به‌روزرسانی شد' : 'Record type updated');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed');
+    } finally { setRecordTypesSaving(''); }
+  };
+
   useEffect(() => {
-    fetchUsers(); fetchAllRecords(); fetchPlans(); fetchSettings(); fetchAdminLogs(); fetchBotStatus(); fetchZones(); fetchSmtpStatus(); fetchCfToken(); fetchBackupSettings(); fetchGoogleOAuth(); fetchEmailSignupStatus();
-  }, [fetchUsers, fetchAllRecords, fetchPlans, fetchSettings, fetchAdminLogs, fetchBotStatus, fetchZones, fetchSmtpStatus, fetchCfToken, fetchBackupSettings, fetchGoogleOAuth, fetchEmailSignupStatus]);
+    fetchUsers(); fetchAllRecords(); fetchPlans(); fetchSettings(); fetchAdminLogs(); fetchBotStatus(); fetchZones(); fetchSmtpStatus(); fetchCfToken(); fetchBackupSettings(); fetchGoogleOAuth(); fetchEmailSignupStatus(); fetchRecordTypes();
+  }, [fetchUsers, fetchAllRecords, fetchPlans, fetchSettings, fetchAdminLogs, fetchBotStatus, fetchZones, fetchSmtpStatus, fetchCfToken, fetchBackupSettings, fetchGoogleOAuth, fetchEmailSignupStatus, fetchRecordTypes]);
 
   // === User actions ===
   const handleDeleteUser = async () => {
@@ -1777,6 +1801,48 @@ export default function Admin() {
                 {googleOAuthSaving ? <Loader2 className="w-4 h-4 animate-spin me-2" /> : <Save className="w-4 h-4 me-2" />}
                 {t('admin_save_settings')}
               </Button>
+            </div>
+
+            {/* ── Record Types ── */}
+            <div className="rounded-sm border border-border bg-card p-6 space-y-5" data-testid="admin-record-types-section">
+              <div className="flex items-center gap-3 mb-2">
+                <Database className="w-5 h-5 text-primary" />
+                <h3 className="text-lg font-semibold">{lang === 'fa' ? 'نوع‌های رکورد DNS' : 'DNS Record Types'}</h3>
+                <Button variant="ghost" size="sm" onClick={fetchRecordTypes} data-testid="admin-record-types-refresh">
+                  <RefreshCw className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                {lang === 'fa'
+                  ? 'نوع‌های رکوردی که می‌خواهید کاربران بتوانند بسازند را روشن/خاموش کنید. نوع خاموش در فرم ساخت رکورد به کاربر نمایش داده نمی‌شود. اگر همه خاموش باشند، ساخت رکورد کاملاً غیرفعال می‌شود.'
+                  : 'Toggle which record types users can create. A disabled type is hidden in the create form. If all are disabled, record creation is turned off entirely.'}
+              </p>
+              {recordTypes.length > 0 && recordTypes.filter(rt => rt.enabled).length === 0 && (
+                <div className="border border-destructive/40 bg-destructive/5 text-destructive font-mono text-[11px] p-3 rounded-sm" data-testid="admin-record-types-all-off">
+                  {lang === 'fa' ? '⚠ همه نوع‌ها خاموش‌اند — ساخت رکورد برای کاربران غیرفعال است.' : '⚠ All types are off — record creation is disabled for users.'}
+                </div>
+              )}
+              <div className="divide-y divide-border border border-border rounded-sm">
+                {recordTypes.map(rt => (
+                  <div key={rt.type} className="flex items-center justify-between px-4 py-3" data-testid={`admin-record-type-row-${rt.type}`}>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-sm font-semibold w-14">{rt.type}</span>
+                      <span className="font-mono text-[11px] text-muted-foreground">
+                        {rt.enabled ? (lang === 'fa' ? 'فعال' : 'enabled') : (lang === 'fa' ? 'خاموش' : 'disabled')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {recordTypesSaving === rt.type && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+                      <Switch
+                        checked={rt.enabled}
+                        disabled={recordTypesSaving === rt.type}
+                        onCheckedChange={(v) => handleToggleRecordType(rt.type, v)}
+                        data-testid={`admin-record-type-toggle-${rt.type}`}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </TabsContent>
         </Tabs>
